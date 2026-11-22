@@ -21,6 +21,8 @@ internal static class Program
         ProbeTests();
         PreserveHealthTests();
         UsageScannerTests();
+        UsageStoreTests();
+        OpenCodeConfigTests();
         DpapiTests();
         SettingsRoundTripTests();
 
@@ -266,6 +268,113 @@ internal static class Program
         scanner.Scan("data: {\"choices\":[],\"usage\":null}\n\n");
         Check("счётчик токенов: usage:null пропускается", prompt == 0 && completion == 0,
             $"вход {prompt}, выход {completion}");
+    }
+
+    /// <summary>
+    /// "Today" must survive a restart but must not carry yesterday's numbers forward.
+    /// </summary>
+    private static void UsageStoreTests()
+    {
+        string folder = Path.Combine(Path.GetTempPath(), "th-usage-" + Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            UsageStore.Configure(Path.Combine(folder, "settings.json"));
+            UsageStore.Reset();
+
+            Check("токены за сегодня: пустой день", UsageStore.Today == (0L, 0L, 0),
+                UsageStore.Today);
+
+            UsageStore.Add(120, 30);
+            UsageStore.Add(5, 7);
+
+            Check("токены за сегодня: ответы складываются", UsageStore.Today == (125L, 37L, 2),
+                UsageStore.Today);
+
+            // A file left over from another day starts from zero instead of adding up.
+            File.WriteAllText(
+                UsageStore.FilePath,
+                "{\"Date\":\"1999-01-01\",\"PromptTokens\":999,\"CompletionTokens\":999,\"Responses\":9}");
+            Check("токены за сегодня: вчерашний день не прибавляется", UsageStore.Today == (0L, 0L, 0),
+                UsageStore.Today);
+
+            UsageStore.Reset();
+            Check("токены за сегодня: сброс обнуляет", UsageStore.Today == (0L, 0L, 0),
+                UsageStore.Today);
+        }
+        catch (Exception ex)
+        {
+            Check("токены за сегодня: файл счётчика", false, ex.Message);
+        }
+        finally
+        {
+            UsageStore.Configure(SettingsStore.FilePath);
+            try
+            {
+                Directory.Delete(folder, recursive: true);
+            }
+            catch
+            {
+                // Temp folder is harmless.
+            }
+        }
+    }
+
+    /// <summary>
+    /// The first-run wizard must be able to create opencode.json from nothing, and a
+    /// second run must not throw away providers the user already had.
+    /// </summary>
+    private static void OpenCodeConfigTests()
+    {
+        string folder = Path.Combine(Path.GetTempPath(), "th-oc-" + Guid.NewGuid().ToString("N"));
+        string path = Path.Combine(folder, "opencode.json");
+
+        try
+        {
+            OpenCodeConfig.EnsureProvider("http://127.0.0.1:8477/v1", "thk_test", path);
+
+            var node = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(path))!;
+            string? url = node["provider"]?["tokenharbor"]?["options"]?["baseURL"]?.GetValue<string>();
+            string? model = node["model"]?.GetValue<string>();
+            int models = (node["provider"]?["tokenharbor"]?["models"] as System.Text.Json.Nodes.JsonObject)?.Count ?? 0;
+
+            Check("мастер: создаёт opencode.json с провайдером", url == "http://127.0.0.1:8477/v1", url);
+            Check("мастер: прописывает модель и список моделей",
+                model == "tokenharbor/deepseek-v4.1-flash:free" && models == 3, $"{model} / {models}");
+
+            // Pretend the user already had another provider and an MCP server.
+            node["mcp"] = new System.Text.Json.Nodes.JsonObject
+            {
+                ["Roblox_Studio"] = new System.Text.Json.Nodes.JsonObject(),
+            };
+            node["provider"]!["ollama"] = new System.Text.Json.Nodes.JsonObject { ["name"] = "Ollama" };
+            File.WriteAllText(path, node.ToJsonString());
+
+            OpenCodeConfig.EnsureProvider("http://127.0.0.1:8490/v1", "thk_other", path);
+
+            var again = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(path))!;
+            string? newUrl = again["provider"]?["tokenharbor"]?["options"]?["baseURL"]?.GetValue<string>();
+            string? ollama = again["provider"]?["ollama"]?["name"]?.GetValue<string>();
+
+            Check("мастер: второй запуск сохраняет чужие провайдеры и mcp",
+                newUrl == "http://127.0.0.1:8490/v1" && ollama == "Ollama" && again["mcp"] is not null,
+                $"{newUrl} / {ollama} / mcp={(again["mcp"] is not null)}");
+        }
+        catch (Exception ex)
+        {
+            Check("мастер: создание конфига OpenCode", false, ex.Message);
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(folder, recursive: true);
+            }
+            catch
+            {
+                // Temp folder is harmless.
+            }
+        }
     }
 
     private static void Check(string name, KeyFault expected, KeyFault actual) =>

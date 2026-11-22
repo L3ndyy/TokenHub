@@ -90,6 +90,12 @@ public sealed class AppSettings
     /// <summary>Start hidden in the tray (item T14).</summary>
     public bool StartMinimized { get; set; }
 
+    /// <summary>
+    /// Set once the first-run wizard is finished or skipped, so it stops opening on
+    /// every start. The button on the dashboard can always open it again.
+    /// </summary>
+    public bool FirstRunDone { get; set; }
+
     /// <summary>Sort used when drawing the key list (item V6). Empty/“manual” keeps the pool order.</summary>
     public string KeysSort { get; set; } = "manual";
 

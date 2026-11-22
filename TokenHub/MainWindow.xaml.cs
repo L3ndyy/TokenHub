@@ -2,6 +2,7 @@
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -33,6 +34,7 @@ public partial class MainWindow : Window
     private DispatcherTimer? _liveTimer;
     private long _serviceRequests;
     private readonly Dictionary<string, (int Requests, int Failures, long AvgMs)> _serviceKeyStats = new();
+    private readonly Dictionary<string, ToggleButton> _skillChips = new();
     private string _serviceHealth = string.Empty;
 
     public MainWindow()
@@ -106,6 +108,7 @@ public partial class MainWindow : Window
         StartLiveStats();
         _ = RefreshServiceStatusAsync();
         _ = StartupChecksAsync();
+        OpenWizardIfNeeded();
 
         // Item T14: an autostart launch should stay in the tray, not pop up.
         if (App.StartMinimized || settings.StartMinimized)
@@ -115,6 +118,26 @@ public partial class MainWindow : Window
             // first render, then slip into the tray.
             ContentRendered += (_, _) => Hide();
         }
+    }
+
+    /// <summary>
+    /// A freshly installed OpenCode has no config at all, so the first launch should end
+    /// with a working setup instead of a JSON file the user has to write themselves.
+    /// Runs after the window has painted, and only while the wizard has never been seen.
+    /// </summary>
+    private void OpenWizardIfNeeded()
+    {
+        if (App.Settings.FirstRunDone || App.StartMinimized || App.Settings.StartMinimized)
+        {
+            return;
+        }
+
+        if (!OpenCodeConfig.NeedsSetup)
+        {
+            return;
+        }
+
+        Dispatcher.BeginInvoke(new Action(OpenWizard));
     }
 
     // ---------------------------------------------------------------- window geometry (V8)
@@ -240,7 +263,8 @@ public partial class MainWindow : Window
         if (proxy.Running)
         {
             sb.AppendLine($"Запросов: {proxy.Requests} · переключений: {proxy.Failovers}");
-            sb.AppendLine($"Токенов: вход {proxy.PromptTokens} · выход {proxy.CompletionTokens}");
+            sb.AppendLine($"Токенов за сессию: вход {proxy.PromptTokens} · выход {proxy.CompletionTokens}");
+            sb.AppendLine(TodayLine());
             sb.AppendLine($"Стратегия: {StrategyName(App.Settings.KeyStrategy)}");
 
             foreach (var key in App.Settings.Keys)
@@ -262,6 +286,16 @@ public partial class MainWindow : Window
         }
 
         TxtPoolStats.Text = sb.ToString().TrimEnd();
+    }
+
+    /// <summary>
+    /// "Today" comes from usage.json, so it survives restarts of the app and of the
+    /// Windows service, unlike the session counters above it.
+    /// </summary>
+    private static string TodayLine()
+    {
+        var today = UsageStore.Today;
+        return $"Токенов за сегодня: вход {today.Prompt} · выход {today.Completion} (ответов {today.Responses})";
     }
 
     /// <summary>Refreshes the dashboard and the sparkline while the window is open (item V3).</summary>
@@ -378,6 +412,9 @@ public partial class MainWindow : Window
             long fail = Long(root, "failovers");
             long pin = Long(root, "promptTokens");
             long pout = Long(root, "completionTokens");
+            long pinToday = Long(root, "promptTokensToday");
+            long poutToday = Long(root, "completionTokensToday");
+            long todayAnswers = Long(root, "usageResponsesToday");
             _serviceRequests = req;
 
             // Item V4: the service owns the live counters, so read them over the pipe.
@@ -437,7 +474,8 @@ public partial class MainWindow : Window
             TxtPoolStats.Text =
                 $"Служба Windows:{Environment.NewLine}" +
                 $"Запросов: {req} · переключений: {fail}{Environment.NewLine}" +
-                $"Токенов: вход {pin} · выход {pout}";
+                $"Токенов за сессию: вход {pin} · выход {pout}{Environment.NewLine}" +
+                $"Токенов за сегодня: вход {pinToday} · выход {poutToday} (ответов {todayAnswers})";
         }
         catch
         {
@@ -476,8 +514,9 @@ public partial class MainWindow : Window
     private void ResetStats_Click(object sender, RoutedEventArgs e)
     {
         LocalProxy.Instance.ResetStats();
+        UsageStore.Reset();
         RefreshStats();
-        Journal("Счётчики статистики сброшены", Kind.Ok);
+        Journal("Счётчики статистики сброшены (сессия и текущий день)", Kind.Ok);
     }
 
     private static string StrategyName(string strategy) => strategy switch
@@ -721,6 +760,42 @@ public partial class MainWindow : Window
         {
             await CheckAllKeysAsync();
         }
+
+        await OfferServiceUpdateAsync();
+    }
+
+    /// <summary>
+    /// After the app updates itself, the installed Windows service still runs the old
+    /// binaries. Ask once at start-up instead of leaving a stale proxy behind, and let
+    /// the user decline: the button in "Ключи" does the same thing any time.
+    /// </summary>
+    private async Task OfferServiceUpdateAsync()
+    {
+        if (PoolService.Current is not (PoolService.State.Running or PoolService.State.Stopped))
+        {
+            return;
+        }
+
+        if (!PoolService.PayloadOutdated)
+        {
+            return;
+        }
+
+        var answer = MessageBox.Show(
+            this,
+            "Файлы службы Windows остались от прежней версии приложения." + Environment.NewLine + Environment.NewLine +
+            "Обновить их сейчас? Служба ненадолго остановится и запустится заново, Windows один раз попросит права администратора.",
+            "TokenHub",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+
+        if (answer != MessageBoxResult.Yes)
+        {
+            Status("Файлы службы можно обновить в разделе «Ключи»", Kind.Unknown);
+            return;
+        }
+
+        await RunServiceAsync(PoolService.Update, "Обновляю файлы службы", PoolService.State.Running);
     }
 
     protected override void OnSourceInitialized(EventArgs e)
@@ -916,6 +991,7 @@ public partial class MainWindow : Window
         PanelLaunch.Visibility = tag == "launch" ? Visibility.Visible : Visibility.Collapsed;
         PanelNetwork.Visibility = tag == "network" ? Visibility.Visible : Visibility.Collapsed;
         PanelKeys.Visibility = tag == "keys" ? Visibility.Visible : Visibility.Collapsed;
+        PanelSkills.Visibility = tag == "skills" ? Visibility.Visible : Visibility.Collapsed;
         PanelSettings.Visibility = tag == "settings" ? Visibility.Visible : Visibility.Collapsed;
 
         // Item V7: a short fade between panels, skipped when Windows disables animations.
@@ -924,6 +1000,7 @@ public partial class MainWindow : Window
             "launch" => PanelLaunch,
             "network" => PanelNetwork,
             "keys" => PanelKeys,
+            "skills" => PanelSkills,
             "settings" => PanelSettings,
             _ => PanelHome,
         };
@@ -945,6 +1022,11 @@ public partial class MainWindow : Window
         if (tag == "network")
         {
             RefreshModeText();
+        }
+
+        if (tag == "skills")
+        {
+            RenderSkills();
         }
     }
 
@@ -1269,9 +1351,12 @@ public partial class MainWindow : Window
     {
         try
         {
-            string backup = OpenCodeConfig.SetBaseUrl(url);
+            string? backup = OpenCodeConfig.SetBaseUrl(url);
             RefreshModeText();
-            Status($"Адрес провайдера обновлён. Бэкап: {Path.GetFileName(backup)}", Kind.Ok);
+            Status(backup is null
+                    ? "Создан новый конфиг OpenCode с нужным адресом"
+                    : $"Адрес провайдера обновлён. Бэкап: {Path.GetFileName(backup)}",
+                Kind.Ok);
         }
         catch (Exception ex)
         {
@@ -1960,7 +2045,10 @@ public partial class MainWindow : Window
 
             string? key = App.Settings.FirstAvailableKey?.Key
                           ?? App.Settings.Keys.FirstOrDefault()?.Key;
-            string backup = OpenCodeConfig.SetProvider(App.Settings.LocalBaseUrl, key);
+            string? backup = OpenCodeConfig.SetProvider(App.Settings.LocalBaseUrl, key);
+            string backupLine = backup is null
+                ? "Создан новый конфиг OpenCode."
+                : $"Бэкап конфига: {Path.GetFileName(backup)}";
 
             RefreshModeText();
             RefreshPoolState();
@@ -1973,7 +2061,7 @@ public partial class MainWindow : Window
                     "Нужен один перезапуск OpenCode, чтобы он прочитал новый адрес. Дальше ключи можно " +
                     "добавлять, выключать и удалять на ходу — OpenCode будет незаметно брать следующий " +
                     "рабочий ключ, и диалог не прервётся." + Environment.NewLine + Environment.NewLine +
-                    $"Бэкап конфига: {Path.GetFileName(backup)}",
+                    backupLine,
                     "TokenHub",
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
@@ -2136,6 +2224,217 @@ public partial class MainWindow : Window
         }
     }
 
+    // ---------------------------------------------------------------- skills
+
+    private void OpenWizard_Click(object sender, RoutedEventArgs e) => OpenWizard();
+
+    /// <summary>Opens the setup wizard, also used on the very first run.</summary>
+    private void OpenWizard()
+    {
+        var wizard = new FirstRunWindow { Owner = this };
+        if (wizard.ShowDialog() != true)
+        {
+            RefreshModeText();
+            return;
+        }
+
+        RefreshAllFromSettings();
+        RenderSkills();
+        _ = CompleteSetupAsync(wizard.SkillsInstalled);
+    }
+
+    /// <summary>
+    /// Finishes the wizard: brings the pool up, points OpenCode at it and offers the one
+    /// restart OpenCode needs to read the new config.
+    /// </summary>
+    private async Task CompleteSetupAsync(int skillsInstalled)
+    {
+        bool connected = await ApplyPoolAsync(inform: false);
+        string skills = skillsInstalled > 0 ? $" Скиллов установлено: {skillsInstalled}." : string.Empty;
+
+        if (!connected)
+        {
+            MessageBox.Show(
+                this,
+                "Настройки сохранены, но подключить пул не удалось — подробности в строке состояния." +
+                Environment.NewLine + Environment.NewLine +
+                "Попробуйте кнопку «Применить в OpenCode» в разделе «Ключи»." + skills,
+                "TokenHub", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        if (Launcher.OpenCodeRunningCount() == 0)
+        {
+            MessageBox.Show(
+                this,
+                "Готово: OpenCode настроен на пул ключей." + skills +
+                Environment.NewLine + Environment.NewLine +
+                "Запустить OpenCode можно кнопкой на «Главной».",
+                "TokenHub", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var answer = MessageBox.Show(
+            this,
+            "Готово: OpenCode настроен на пул ключей." + skills +
+            Environment.NewLine + Environment.NewLine +
+            "Перезапустить OpenCode сейчас, чтобы он прочитал новый конфиг? Текущий диалог закроется.",
+            "TokenHub", MessageBoxButton.YesNo, MessageBoxImage.Question);
+
+        if (answer != MessageBoxResult.Yes)
+        {
+            Status("OpenCode настроен — перезапустите его вручную", Kind.Ok);
+            return;
+        }
+
+        try
+        {
+            Launcher.RestartOpenCode();
+            Status("OpenCode перезапущен — можно работать", Kind.Ok);
+        }
+        catch (Exception ex)
+        {
+            Status("Не удалось перезапустить OpenCode: " + ex.Message, Kind.Fail);
+        }
+    }
+
+    /// <summary>Draws the shipped skill collection as selectable chips.</summary>
+    private void RenderSkills()
+    {
+        if (SkillsList is null)
+        {
+            return;
+        }
+
+        _skillChips.Clear();
+        SkillsList.Children.Clear();
+
+        string filter = TxtSkillSearch?.Text?.Trim() ?? string.Empty;
+
+        foreach (var skill in Skills.Catalog)
+        {
+            if (filter.Length > 0
+                && !skill.Name.Contains(filter, StringComparison.OrdinalIgnoreCase)
+                && !skill.Description.Contains(filter, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            // A trailing dot marks an installed skill without needing a second control.
+            string label = Skills.IsInstalled(skill.Name) ? skill.Name + " ·" : skill.Name;
+
+            var chip = new ToggleButton
+            {
+                Style = (Style)FindResource("SkillChip"),
+                Content = label,
+                Tag = skill.Name,
+                ToolTip = string.IsNullOrEmpty(skill.Description)
+                    ? skill.Name
+                    : $"{skill.Name}{Environment.NewLine}{Environment.NewLine}{skill.Description}",
+            };
+
+            chip.Checked += (_, _) => UpdateSkillsHint();
+            chip.Unchecked += (_, _) => UpdateSkillsHint();
+
+            _skillChips[skill.Name] = chip;
+            SkillsList.Children.Add(chip);
+        }
+
+        RefreshSkillsState();
+        UpdateSkillsHint();
+    }
+
+    private void RefreshSkillsState()
+    {
+        if (TxtSkillsState is null)
+        {
+            return;
+        }
+
+        TxtSkillsState.Text = Skills.Catalog.Count == 0
+            ? "В этой сборке нет набора скиллов."
+            : $"Скиллов в наборе: {Skills.Catalog.Count} · уже установлено: {Skills.InstalledCount}";
+        TxtSkillsPath.Text = Skills.Folder;
+    }
+
+    private void UpdateSkillsHint()
+    {
+        if (TxtSkillsHint is null)
+        {
+            return;
+        }
+
+        if (_skillChips.Count == 0)
+        {
+            TxtSkillsHint.Text = Skills.Catalog.Count == 0 ? string.Empty : "Ничего не найдено.";
+            return;
+        }
+
+        int selected = _skillChips.Count(pair => pair.Value.IsChecked == true);
+        TxtSkillsHint.Text = $"Выбрано: {selected} из {_skillChips.Count}. Точка после названия — скилл уже установлен.";
+    }
+
+    private void SkillSearch_Changed(object sender, TextChangedEventArgs e)
+    {
+        if (_loading)
+        {
+            return;
+        }
+
+        RenderSkills();
+    }
+
+    private void InstallAllSkills_Click(object sender, RoutedEventArgs e) =>
+        InstallSkills(Skills.Catalog.Select(skill => skill.Name), "все");
+
+    private void InstallSelectedSkills_Click(object sender, RoutedEventArgs e)
+    {
+        var chosen = _skillChips
+            .Where(pair => pair.Value.IsChecked == true)
+            .Select(pair => pair.Key)
+            .ToList();
+
+        if (chosen.Count == 0)
+        {
+            Status("Сначала выберите хотя бы один скилл", Kind.Fail);
+            return;
+        }
+
+        InstallSkills(chosen, "выбранные");
+    }
+
+    private void InstallSkills(IEnumerable<string> names, string what)
+    {
+        try
+        {
+            Busy(true);
+            int copied = Skills.Install(names);
+            Busy(false);
+
+            RenderSkills();
+            Journal($"Скиллы ({what}): установлено {copied} в {Skills.Folder}", Kind.Ok);
+        }
+        catch (Exception ex)
+        {
+            Busy(false);
+            Status("Не удалось установить скиллы: " + ex.Message, Kind.Fail);
+        }
+    }
+
+    private void OpenSkillsFolder_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            System.IO.Directory.CreateDirectory(Skills.Folder);
+            Launcher.OpenFolder(Skills.Folder);
+            Status("Открываю папку скиллов", Kind.Ok);
+        }
+        catch (Exception ex)
+        {
+            Status(ex.Message, Kind.Fail);
+        }
+    }
+
     // ---------------------------------------------------------------- Windows service
 
     private void RefreshServiceState()
@@ -2150,6 +2449,12 @@ public partial class MainWindow : Window
         });
 
         TxtServiceState.Text = PoolService.Describe();
+
+        // After the app updated itself, the installed service still runs the old files.
+        if ((state is PoolService.State.Running or PoolService.State.Stopped) && PoolService.PayloadOutdated)
+        {
+            TxtServiceHint.Text = "Файлы службы устарели после обновления приложения — нажмите «Обновить файлы службы».";
+        }
     }
 
     private async void ServiceInstall_Click(object sender, RoutedEventArgs e) =>

@@ -91,6 +91,10 @@ internal static class Program
         _settingsPath = ResolveSettingsPath(args);
         _logPath = ResolveLogPath();
 
+        // Daily token totals live next to the settings file the service uses, which is
+        // the user's profile, not the LocalSystem one.
+        UsageStore.Configure(_settingsPath);
+
         _serviceMain = ServiceMain;
         _controlHandler = OnControl;
 

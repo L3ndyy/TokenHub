@@ -14,5 +14,7 @@
     <Compile Include="..\TokenHub\Services\EventLog.cs" Link="EventLog.cs" />
     <Compile Include="..\TokenHub\Services\Dpapi.cs" Link="Dpapi.cs" />
     <Compile Include="..\TokenHub\Services\UsageScanner.cs" Link="UsageScanner.cs" />
+    <Compile Include="..\TokenHub\Services\UsageStore.cs" Link="UsageStore.cs" />
+    <Compile Include="..\TokenHub\Services\OpenCodeConfig.cs" Link="OpenCodeConfig.cs" />
   </ItemGroup>
 </Project>

@@ -2,6 +2,7 @@
 # repository is an allowlist: only the TokenHub projects are tracked.
 /*
 !/.gitignore
+!/.github/
 !/README.md
 !/LICENSE
 !/installer/

@@ -40,6 +40,36 @@
             </Setter>
         </Style>
 
+        <Style x:Key="SkillChip" TargetType="ToggleButton">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Foreground" Value="{DynamicResource Br.Text}" />
+            <Setter Property="Margin" Value="0,0,6,6" />
+            <Setter Property="ToolTipService.ShowDuration" Value="30000" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Bd" CornerRadius="6"
+                                Background="{DynamicResource Br.Control}"
+                                BorderBrush="{DynamicResource Br.ControlBorder}"
+                                BorderThickness="1">
+                            <ContentPresenter x:Name="Cp" Margin="10,5"
+                                              HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Br.ControlHover}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Br.Accent}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Br.Accent}" />
+                                <Setter TargetName="Cp" Property="TextElement.Foreground" Value="{DynamicResource Br.OnAccent}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="Swatch" TargetType="Button">
             <Setter Property="Width" Value="30" />
             <Setter Property="Height" Value="30" />
@@ -137,6 +167,14 @@
                         </StackPanel>
                     </RadioButton>
 
+                    <RadioButton x:Name="NavSkills" GroupName="nav" Style="{StaticResource NavItem}"
+                                 Tag="skills" Checked="Nav_Checked">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE8F1;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14" VerticalAlignment="Center" />
+                            <TextBlock Text="Скиллы" Margin="12,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </RadioButton>
+
                     <RadioButton x:Name="NavSettings" GroupName="nav" Style="{StaticResource NavItem}"
                                  Tag="settings" Checked="Nav_Checked">
                         <StackPanel Orientation="Horizontal">
@@ -219,6 +257,7 @@
                                     <TextBlock Text="Быстрые действия" Style="{StaticResource CardTitle}" />
                                     <WrapPanel Margin="0,12,0,0">
                                         <Button x:Name="BtnUpdate" Style="{StaticResource AccentButton}" Content="Проверить обновление" Margin="0,0,8,8" Click="CheckUpdate_Click" />
+                                        <Button Style="{StaticResource SubtleButton}" Content="Настроить OpenCode" Margin="0,0,8,8" Click="OpenWizard_Click" />
                                         <Button Style="{StaticResource SubtleButton}" Content="Проверить всё" Margin="0,0,8,8" Click="CheckAll_Click" />
                                         <Button Style="{StaticResource SubtleButton}" Content="Журнал событий" Margin="0,0,8,8" Click="OpenJournal_Click" />
                                         <Button Style="{StaticResource SubtleButton}" Content="Диагностика" Margin="0,0,8,8" Click="ExportDiagnostics_Click" />
@@ -494,6 +533,52 @@
                                         <Button Style="{StaticResource SubtleButton}" Content="Обновить" Margin="0,0,8,8" Click="ServiceRefresh_Click" />
                                         <Button Style="{StaticResource SubtleButton}" Content="Обновить файлы службы" Margin="0,0,8,8" Click="ServiceUpdate_Click" />
                                     </WrapPanel>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- ============ SKILLS ============ -->
+                        <StackPanel x:Name="PanelSkills" Margin="18,10,0,0" Visibility="Collapsed">
+                            <TextBlock Text="Скиллы" Style="{StaticResource Title}" />
+                            <TextBlock Style="{StaticResource Subtitle}" Text="Готовые наборы инструкций для OpenCode" />
+
+                            <Border Style="{StaticResource Card}" Margin="0,18,0,0">
+                                <StackPanel>
+                                    <TextBlock x:Name="TxtSkillsState" Style="{StaticResource Body}" Text="Проверка..." />
+                                    <TextBlock x:Name="TxtSkillsPath" Style="{StaticResource Mono}" Margin="0,8,0,0"
+                                               Text="..." TextWrapping="Wrap" />
+                                    <WrapPanel Margin="0,12,0,0">
+                                        <Button Style="{StaticResource AccentButton}" Content="Установить все"
+                                                Margin="0,0,8,8" Click="InstallAllSkills_Click"
+                                                AutomationProperties.Name="Установить все скиллы" />
+                                        <Button Style="{StaticResource SubtleButton}" Content="Установить выбранные"
+                                                Margin="0,0,8,8" Click="InstallSelectedSkills_Click" />
+                                        <Button Style="{StaticResource SubtleButton}" Content="Открыть папку"
+                                                Margin="0,0,8,8" Click="OpenSkillsFolder_Click" />
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource Card}" Margin="0,12,0,0">
+                                <StackPanel>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="Набор" Style="{StaticResource CardTitle}"
+                                                   VerticalAlignment="Center" />
+                                        <TextBox x:Name="TxtSkillSearch" Grid.Column="1" Width="240"
+                                                 Style="{StaticResource Field}" TextChanged="SkillSearch_Changed"
+                                                 AutomationProperties.Name="Поиск по скиллам" />
+                                    </Grid>
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,8,0,0" TextWrapping="Wrap"
+                                               Text="Нажмите на название, чтобы выбрать набор. Точка после названия значит, что скилл уже установлен." />
+                                    <ScrollViewer MaxHeight="330" VerticalScrollBarVisibility="Auto" Margin="0,12,0,0">
+                                        <WrapPanel x:Name="SkillsList" />
+                                    </ScrollViewer>
+                                    <TextBlock x:Name="TxtSkillsHint" Style="{StaticResource Caption}" Margin="0,10,0,0"
+                                               Text="" TextWrapping="Wrap" />
                                 </StackPanel>
                             </Border>
                         </StackPanel>

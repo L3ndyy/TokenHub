@@ -8,7 +8,7 @@
     <UseWPF>true</UseWPF>
     <AssemblyName>TokenHub</AssemblyName>
     <RootNamespace>TokenHub</RootNamespace>
-    <Version>1.0.2</Version>
+    <Version>1.0.3</Version>
     <AssemblyTitle>TokenHub</AssemblyTitle>
     <Product>TokenHub</Product>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
@@ -17,6 +17,8 @@
 
   <ItemGroup>
     <Resource Include="Assets\app.ico" />
+    <!-- The skill collection ships inside the exe: the single-file build has no side files. -->
+    <EmbeddedResource Include="Assets\skills.zip" LogicalName="skills.zip" />
   </ItemGroup>
 
   <ItemGroup>

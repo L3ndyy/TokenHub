@@ -26,6 +26,7 @@
     <Compile Include="..\TokenHub\Services\Pipe.cs" Link="Services\Pipe.cs" />
     <Compile Include="..\TokenHub\Services\EventLog.cs" Link="Services\EventLog.cs" />
     <Compile Include="..\TokenHub\Services\UsageScanner.cs" Link="Services\UsageScanner.cs" />
+    <Compile Include="..\TokenHub\Services\UsageStore.cs" Link="Services\UsageStore.cs" />
   </ItemGroup>
 
 </Project>

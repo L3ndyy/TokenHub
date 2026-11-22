@@ -500,6 +500,10 @@ public sealed class LocalProxy
         {
             Interlocked.Add(ref _completionTokens, completion);
         }
+
+        // Session counters die with the process; this one survives restarts and is
+        // what the dashboard shows as "today".
+        UsageStore.Add(prompt, completion);
     }
 
     /// <summary>Reads the requested model out of the JSON body, when there is one.</summary>
@@ -757,6 +761,7 @@ public sealed class LocalProxy
     public string StatusJson()
     {
         var settings = Settings;
+        var today = UsageStore.Today;
 
         var payload = new
         {
@@ -772,6 +777,9 @@ public sealed class LocalProxy
             failovers = Failovers,
             promptTokens = PromptTokens,
             completionTokens = CompletionTokens,
+            promptTokensToday = today.Prompt,
+            completionTokensToday = today.Completion,
+            usageResponsesToday = today.Responses,
             lastError = LastError,
             keys = settings.Keys.Select((k, index) =>
             {

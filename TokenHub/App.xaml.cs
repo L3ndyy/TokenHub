@@ -28,6 +28,9 @@ public partial class App : Application
         Settings = SettingsStore.Load();
         Theme.Apply(Settings.Theme, Settings.Accent);
 
+        // Daily token totals live next to the settings file this process owns.
+        UsageStore.Configure(SettingsStore.FilePath);
+
         // Item T1: rewrite once so any keys stored in plain text by older versions
         // are upgraded to DPAPI ciphertext right away.
         SettingsStore.Save(Settings);

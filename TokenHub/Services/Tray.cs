@@ -175,9 +175,11 @@ internal static class Tray
             AppendMenu(menu, MfString, new IntPtr(CmdKeysPage), "Ключи и пул");
             AppendMenu(menu, MfString, new IntPtr(CmdCheckKeys), "Проверить ключи");
             AppendMenu(menu, MfSeparator, IntPtr.Zero, string.Empty);
+            // Exiting is always allowed: when no proxy is running there is nothing to
+            // warn about, but the item must still be clickable (it used to be grayed out).
             AppendMenu(
                 menu,
-                MfString | (proxyRunning ? 0 : MfGrayed),
+                MfString,
                 new IntPtr(CmdExit),
                 proxyRunning ? "Выход (прокси остановится)" : "Выход");
 
