@@ -13,5 +13,6 @@
     <Compile Include="..\TokenHub\Services\SettingsStore.cs" Link="SettingsStore.cs" />
     <Compile Include="..\TokenHub\Services\EventLog.cs" Link="EventLog.cs" />
     <Compile Include="..\TokenHub\Services\Dpapi.cs" Link="Dpapi.cs" />
+    <Compile Include="..\TokenHub\Services\UsageScanner.cs" Link="UsageScanner.cs" />
   </ItemGroup>
 </Project>

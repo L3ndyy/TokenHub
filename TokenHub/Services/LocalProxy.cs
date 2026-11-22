@@ -288,12 +288,13 @@ public sealed class LocalProxy
                 Interlocked.Increment(ref _requests);
 
                 // JSON answers are buffered so token usage can be counted (item T15);
-                // streamed answers (SSE) are relayed chunk by chunk as before.
+                // streamed answers (SSE) are relayed chunk by chunk, counting usage on
+                // the way through.
                 string? buffered = null;
                 if (IsJson(response))
                 {
                     buffered = await ReadAllAsync(response, cancelled);
-                    CountUsage(buffered);
+                    new UsageScanner(AddUsage).ScanJson(buffered);
                 }
 
                 await RelayAsync(context, response, buffered, cancelled);
@@ -356,7 +357,7 @@ public sealed class LocalProxy
         || name.Equals("Content-Length", StringComparison.OrdinalIgnoreCase)
         || name.Equals("Accept-Encoding", StringComparison.OrdinalIgnoreCase);
 
-    private static async Task RelayAsync(
+    private async Task RelayAsync(
         HttpContext context,
         HttpResponseMessage response,
         string? buffered,
@@ -393,6 +394,7 @@ public sealed class LocalProxy
         await using var source = await response.Content.ReadAsStreamAsync(cancelled);
 
         // Flush every chunk: server-sent events must reach the client immediately.
+        var usage = new UsageScanner(AddUsage);
         var buffer = new byte[16 * 1024];
         while (true)
         {
@@ -410,6 +412,8 @@ public sealed class LocalProxy
             {
                 return;
             }
+
+            usage.Scan(Encoding.UTF8.GetString(buffer, 0, read));
 
             await context.Response.Body.WriteAsync(buffer.AsMemory(0, read), cancelled);
             await context.Response.Body.FlushAsync(cancelled);
@@ -484,35 +488,19 @@ public sealed class LocalProxy
         }
     }
 
-    /// <summary>Sums OpenAI-style token usage out of a JSON answer (item T15).</summary>
-    private void CountUsage(string json)
+    /// <summary>Adds the usage of one answer to the running totals, in one place.</summary>
+    private void AddUsage(long prompt, long completion)
     {
-        if (string.IsNullOrEmpty(json))
+        if (prompt != 0)
         {
-            return;
+            Interlocked.Add(ref _promptTokens, prompt);
         }
 
-        try
+        if (completion != 0)
         {
-            using var doc = JsonDocument.Parse(json);
-            if (doc.RootElement.ValueKind == JsonValueKind.Object
-                && doc.RootElement.TryGetProperty("usage", out var usage)
-                && usage.ValueKind == JsonValueKind.Object)
-            {
-                long prompt = ReadLong(usage, "prompt_tokens") ?? ReadLong(usage, "input_tokens") ?? 0;
-                long completion = ReadLong(usage, "completion_tokens") ?? ReadLong(usage, "output_tokens") ?? 0;
-                Interlocked.Add(ref _promptTokens, prompt);
-                Interlocked.Add(ref _completionTokens, completion);
-            }
-        }
-        catch
-        {
-            // Not a usage-bearing answer; nothing to count.
+            Interlocked.Add(ref _completionTokens, completion);
         }
     }
-
-    private static long? ReadLong(JsonElement element, string name) =>
-        element.TryGetProperty(name, out var value) && value.TryGetInt64(out long number) ? number : null;
 
     /// <summary>Reads the requested model out of the JSON body, when there is one.</summary>
     private static string? ModelOf(byte[]? body)

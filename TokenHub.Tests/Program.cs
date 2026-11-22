@@ -20,6 +20,7 @@ internal static class Program
         SortTests();
         ProbeTests();
         PreserveHealthTests();
+        UsageScannerTests();
         DpapiTests();
         SettingsRoundTripTests();
 
@@ -217,6 +218,55 @@ internal static class Program
     }
 
     // ------------------------------------------------------------------ helpers
+
+    /// <summary>
+    /// OpenCode always streams, and Token Harbor reports tokens in the last SSE chunk.
+    /// These checks pin that behaviour down, including chunks split mid-line.
+    /// </summary>
+    private static void UsageScannerTests()
+    {
+        long prompt = 0;
+        long completion = 0;
+        var scanner = new UsageScanner((p, c) => { prompt += p; completion += c; });
+
+        scanner.Scan("data: {\"choices\":[{\"delta\":{\"content\":\"Hi\"}}]}\n\n");
+        Check("счётчик токенов: обычные чанки без usage ничего не дают", prompt == 0 && completion == 0,
+            $"вход {prompt}, выход {completion}");
+
+        scanner.Scan("data: {\"choices\":[],\"usage\":{\"prompt_tokens\":6,\"completion_tokens\":12}}\n\ndata: [DONE]\n\n");
+        Check("счётчик токенов: usage из SSE считает вход и выход", prompt == 6 && completion == 12,
+            $"вход {prompt}, выход {completion}");
+
+        prompt = 0;
+        completion = 0;
+        scanner = new UsageScanner((p, c) => { prompt += p; completion += c; });
+        scanner.Scan("data: {\"choices\":[],\"usa");
+        scanner.Scan("ge\":{\"prompt_tokens\":100,");
+        scanner.Scan(" \"completion_tokens\":250}}\n\n");
+        Check("счётчик токенов: чанк, разрезанный посередине", prompt == 100 && completion == 250,
+            $"вход {prompt}, выход {completion}");
+
+        prompt = 0;
+        completion = 0;
+        scanner = new UsageScanner((p, c) => { prompt += p; completion += c; });
+        scanner.ScanJson("{\"usage\":{\"input_tokens\":7,\"output_tokens\":9}}");
+        Check("счётчик токенов: нестримовый JSON (input_tokens/output_tokens)",
+            prompt == 7 && completion == 9, $"вход {prompt}, выход {completion}");
+
+        prompt = 0;
+        completion = 0;
+        scanner = new UsageScanner((p, c) => { prompt += p; completion += c; });
+        scanner.ScanJson("{\"id\":\"chatcmpl-1\",\"choices\":[]}");
+        Check("счётчик токенов: ответ без usage не считается", prompt == 0 && completion == 0,
+            $"вход {prompt}, выход {completion}");
+
+        prompt = 0;
+        completion = 0;
+        scanner = new UsageScanner((p, c) => { prompt += p; completion += c; });
+        scanner.Scan("data: {\"choices\":[],\"usage\":null}\n\n");
+        Check("счётчик токенов: usage:null пропускается", prompt == 0 && completion == 0,
+            $"вход {prompt}, выход {completion}");
+    }
 
     private static void Check(string name, KeyFault expected, KeyFault actual) =>
         Check(name, expected == actual, $"{actual} (ожидалось {expected})");
