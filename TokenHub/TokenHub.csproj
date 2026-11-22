@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>TokenHub</AssemblyName>
+    <RootNamespace>TokenHub</RootNamespace>
+    <Version>1.0.0</Version>
+    <AssemblyTitle>TokenHub</AssemblyTitle>
+    <Product>TokenHub</Product>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\app.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Kestrel is used for the local key-pool proxy; the runtime is already installed. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <Target Name="PublishPoolService"
+          AfterTargets="Publish"
+          Condition="Exists('$(MSBuildProjectDirectory)\..\TokenHub.PoolService\TokenHub.PoolService.csproj')">
+    <!-- The optional Windows service ships next to the app so it can install itself. -->
+    <Exec Command="dotnet publish &quot;$(MSBuildProjectDirectory)\..\TokenHub.PoolService\TokenHub.PoolService.csproj&quot; -c $(Configuration) -o &quot;$(PublishDir)poolservice&quot; --nologo"
+          ContinueOnError="true" />
+  </Target>
+
+</Project>

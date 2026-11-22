@@ -1,0 +1,26 @@
+# This folder holds several unrelated projects and personal documents, so the
+# repository is an allowlist: only the TokenHub projects are tracked.
+/*
+!/.gitignore
+!/README.md
+!/LICENSE
+!/installer/
+!/TokenHub/
+!/TokenHub.PoolService/
+!/TokenHub.Tests/
+
+# Build output
+**/bin/
+**/obj/
+TokenHub/publish/
+publish-singlefile/
+installer/stage/
+installer/dist/
+
+# Local secrets and editor files
+.env
+.env.*
+*.secret
+.proxy-secret
+.vs/
+.vscode/

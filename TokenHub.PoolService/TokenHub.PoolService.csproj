@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>TokenHub.PoolService</AssemblyName>
+    <RootNamespace>TokenHub.PoolService</RootNamespace>
+    <AssemblyTitle>TokenHub Pool Proxy</AssemblyTitle>
+    <Product>TokenHub</Product>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Kestrel for the shared local proxy; the runtime is already installed. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The proxy and its settings model are shared with the desktop app. -->
+    <Compile Include="..\TokenHub\Services\LocalProxy.cs" Link="Services\LocalProxy.cs" />
+    <Compile Include="..\TokenHub\Services\SettingsStore.cs" Link="Services\SettingsStore.cs" />
+    <Compile Include="..\TokenHub\Services\Dpapi.cs" Link="Services\Dpapi.cs" />
+    <Compile Include="..\TokenHub\Services\PoolPolicy.cs" Link="Services\PoolPolicy.cs" />
+    <Compile Include="..\TokenHub\Services\Pipe.cs" Link="Services\Pipe.cs" />
+    <Compile Include="..\TokenHub\Services\EventLog.cs" Link="Services\EventLog.cs" />
+  </ItemGroup>
+
+</Project>
