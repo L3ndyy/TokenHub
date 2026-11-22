@@ -37,18 +37,21 @@ internal static class Native
     private static extern IntPtr FindWindow(string? className, string? windowName);
 
     [DllImport("user32.dll")]
-    private static extern bool ShowWindow(IntPtr hwnd, int command);
+    private static extern bool PostMessage(IntPtr hwnd, uint message, IntPtr wParam, IntPtr lParam);
 
-    [DllImport("user32.dll")]
-    private static extern bool SetForegroundWindow(IntPtr hwnd);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern uint RegisterWindowMessage(string name);
 
-    private const int SwRestore = 9;
+    /// <summary>Private message a second launch posts so the running window shows itself through WPF.</summary>
+    public static readonly uint ShowMessage = RegisterWindowMessage("TokenHub.ShowWindow");
 
     /// <summary>
-    /// Brings the already-running TokenHub window to the front (item T3: a second
+    /// Asks the already-running TokenHub to come to the front (item T3: a second
     /// launch should reuse the existing instance instead of starting a rival one).
+    /// A raw ShowWindow is not enough: when the window is hidden in the tray WPF
+    /// still believes it is hidden, and the restored window stays blank.
     /// </summary>
-    public static bool ActivateWindow(string title)
+    public static bool RequestShow(string title)
     {
         IntPtr hwnd = FindWindow(null, title);
         if (hwnd == IntPtr.Zero)
@@ -56,9 +59,7 @@ internal static class Native
             return false;
         }
 
-        ShowWindow(hwnd, SwRestore);
-        SetForegroundWindow(hwnd);
-        return true;
+        return PostMessage(hwnd, ShowMessage, IntPtr.Zero, IntPtr.Zero);
     }
 
     /// <summary>Enables the Mica backdrop. Returns true when Windows accepted it (Windows 11 22H2+).</summary>

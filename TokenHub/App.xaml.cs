@@ -20,7 +20,7 @@ public partial class App : Application
         _instance = new Mutex(true, @"Local\TokenHub.SingleInstance", out bool createdNew);
         if (!createdNew)
         {
-            Native.ActivateWindow("TokenHub");
+            Native.RequestShow("TokenHub");
             Shutdown();
             return;
         }

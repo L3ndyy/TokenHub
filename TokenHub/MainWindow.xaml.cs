@@ -110,7 +110,10 @@ public partial class MainWindow : Window
         // Item T14: an autostart launch should stay in the tray, not pop up.
         if (App.StartMinimized || settings.StartMinimized)
         {
-            Hide();
+            // Hide() inside Loaded leaves a visible window with nothing painted in
+            // it: WPF is still in the middle of showing the window. Wait for the
+            // first render, then slip into the tray.
+            ContentRendered += (_, _) => Hide();
         }
     }
 
@@ -740,6 +743,15 @@ public partial class MainWindow : Window
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
+        if (Native.ShowMessage != 0 && msg == Native.ShowMessage)
+        {
+            // Another launch asked us to come to the front. Go through WPF's
+            // Show(), otherwise a window hidden in the tray comes back blank.
+            handled = true;
+            Dispatcher.BeginInvoke(new Action(ShowFromTray));
+            return IntPtr.Zero;
+        }
+
         if (msg != Tray.CallbackMessage)
         {
             return IntPtr.Zero;
