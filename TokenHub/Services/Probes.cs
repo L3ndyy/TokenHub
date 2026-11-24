@@ -35,11 +35,25 @@ public static class Probes
         return await SendAsync(HttpMethod.Get, url, null, "Модели через пул ключей");
     }
 
+    /// <summary>
+    /// Checks one key against <c>/v1/models</c> through the same route the app uses.
+    /// Only HTTP 200 counts: a 401 here means the key itself was rejected.
+    /// </summary>
+    public static async Task<ProbeResult> KeyAsync(AppSettings settings, string apiKey)
+    {
+        string root = string.IsNullOrWhiteSpace(settings.ProxyBase) || string.IsNullOrWhiteSpace(settings.ProxySecret)
+            ? settings.Upstream
+            : $"{settings.ProxyBase.TrimEnd('/')}/{settings.ProxySecret}";
+
+        return await SendAsync(HttpMethod.Get, $"{root.TrimEnd('/')}/v1/models", apiKey, "Ключ", requireOk: true);
+    }
+
     private static async Task<ProbeResult> SendAsync(
         HttpMethod method,
         string url,
         string? apiKey,
-        string label)
+        string label,
+        bool requireOk = false)
     {
         try
         {
@@ -59,7 +73,8 @@ public static class Probes
                 detail = RegionHint(body) ?? detail;
             }
 
-            return new ProbeResult(IsHealthy(code), $"{label}: HTTP {code}", detail);
+            bool ok = requireOk ? code == 200 : IsHealthy(code);
+            return new ProbeResult(ok, $"{label}: HTTP {code}", detail);
         }
         catch (Exception ex)
         {

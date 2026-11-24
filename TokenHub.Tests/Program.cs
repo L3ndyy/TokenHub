@@ -1,3 +1,6 @@
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
 using TokenHub.Services;
 
 namespace TokenHub.Tests;
@@ -25,6 +28,7 @@ internal static class Program
         OpenCodeConfigTests();
         DpapiTests();
         SettingsRoundTripTests();
+        LocalProxyTests();
 
         Console.WriteLine();
         Console.WriteLine($"Пройдено: {_passed}, провалено: {_failed}");
@@ -398,5 +402,218 @@ internal static class Program
             _failed++;
             Console.WriteLine($"  FAIL {name} — получено: {actual}");
         }
+    }
+
+    // ---------------------------------------------------------------- local proxy (integration)
+
+    /// <summary>
+    /// Starts the real proxy against a hand-written stub upstream and checks the things
+    /// that are easy to break: loopback/Host/Origin guard, the pool credential, and the
+    /// free-only rule. No packages, no network.
+    /// </summary>
+    private static void LocalProxyTests()
+    {
+        string folder = Path.Combine(Path.GetTempPath(), "th-proxy-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        var upstream = new StubUpstream();
+        var proxy = LocalProxy.Instance;
+
+        try
+        {
+            StatsStore.Configure(Path.Combine(folder, "settings.json"));
+            EventLog.Configure(folder);
+
+            int port = FreePort();
+            var settings = new AppSettings
+            {
+                Upstream = $"http://127.0.0.1:{upstream.Port}",
+                ProxyBase = string.Empty,
+                ProxySecret = string.Empty,
+                LocalPort = port,
+                ProxyToken = "thk_pool_testtoken",
+            };
+            settings.Keys.Add(new ApiKeyEntry { Key = "thk_live_testkey", Label = "тест" });
+
+            proxy.Configure(() => settings, _ => { });
+            if (!proxy.StartAsync(port).GetAwaiter().GetResult())
+            {
+                Check("прокси: запускается на свободном порту", false, proxy.LastError);
+                return;
+            }
+
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+            string url = $"http://127.0.0.1:{port}/v1/models";
+
+            CheckHttp("прокси: принимает ключ пула", 200, Send(http, url, "thk_pool_testtoken"), proxy.LastError);
+            CheckHttp("прокси: принимает ключ из настроек", 200, Send(http, url, "thk_live_testkey"));
+            CheckHttp("прокси: отклоняет чужой ключ", 403, Send(http, url, "thk_live_wrong"));
+            CheckHttp("прокси: отклоняет чужой Host", 403,
+                Send(http, url, "thk_pool_testtoken", host: "evil.example"));
+            CheckHttp("прокси: отклоняет чужой Origin", 403,
+                Send(http, url, "thk_pool_testtoken", origin: "https://evil.example"));
+
+            settings.FreeOnly = true;
+            string chat = $"http://127.0.0.1:{port}/v1/chat/completions";
+            CheckHttp("прокси: режим free-only блокирует платную модель", 400,
+                Post(http, chat, "thk_pool_testtoken", "{\"model\":\"deepseek-v4.1-flash\"}"));
+            CheckHttp("прокси: режим free-only пропускает :free", 200,
+                Post(http, chat, "thk_pool_testtoken", "{\"model\":\"deepseek-v4.1-flash:free\"}"));
+        }
+        catch (Exception ex)
+        {
+            Check("прокси: интеграционные проверки", false, ex.Message);
+        }
+        finally
+        {
+            proxy.StopAsync().GetAwaiter().GetResult();
+            upstream.Dispose();
+            try
+            {
+                Directory.Delete(folder, recursive: true);
+            }
+            catch
+            {
+                // Temp folder is harmless.
+            }
+        }
+    }
+
+    private static void CheckHttp(string name, int expected, int actual, string? detail = null) =>
+        Check(name, expected == actual, $"HTTP {actual} (ожидалось {expected}) {detail}");
+
+    private static int Send(HttpClient http, string url, string token, string? host = null, string? origin = null)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.TryAddWithoutValidation("Authorization", "Bearer " + token);
+        if (host is not null)
+        {
+            request.Headers.Host = host;
+        }
+
+        if (origin is not null)
+        {
+            request.Headers.TryAddWithoutValidation("Origin", origin);
+        }
+
+        using var response = http.SendAsync(request).GetAwaiter().GetResult();
+        return (int)response.StatusCode;
+    }
+
+    private static int Post(HttpClient http, string url, string token, string json)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, url)
+        {
+            Content = new StringContent(json, Encoding.UTF8, "application/json"),
+        };
+        request.Headers.TryAddWithoutValidation("Authorization", "Bearer " + token);
+
+        using var response = http.SendAsync(request).GetAwaiter().GetResult();
+        return (int)response.StatusCode;
+    }
+
+    private static int FreePort()
+    {
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        listener.Stop();
+        return port;
+    }
+
+    /// <summary>Minimal HTTP/1.1 server that always answers 200 with a small JSON body.</summary>
+    private sealed class StubUpstream : IDisposable
+    {
+        private readonly TcpListener _listener = new(IPAddress.Loopback, 0);
+
+        public StubUpstream()
+        {
+            _listener.Start();
+            Port = ((IPEndPoint)_listener.LocalEndpoint).Port;
+            _ = Task.Run(LoopAsync);
+        }
+
+        public int Port { get; }
+
+        private async Task LoopAsync()
+        {
+            while (true)
+            {
+                TcpClient client;
+                try
+                {
+                    client = await _listener.AcceptTcpClientAsync();
+                }
+                catch
+                {
+                    return;
+                }
+
+                _ = Task.Run(() => ServeAsync(client));
+            }
+        }
+
+        private static async Task ServeAsync(TcpClient client)
+        {
+            using (client)
+            {
+                try
+                {
+                    var stream = client.GetStream();
+                    var buffer = new byte[8192];
+                    var head = new StringBuilder();
+
+                    while (!head.ToString().Contains("\r\n\r\n", StringComparison.Ordinal))
+                    {
+                        int read = await stream.ReadAsync(buffer);
+                        if (read <= 0)
+                        {
+                            return;
+                        }
+
+                        head.Append(Encoding.ASCII.GetString(buffer, 0, read));
+                        if (head.Length > 64 * 1024)
+                        {
+                            return;
+                        }
+                    }
+
+                    string text = head.ToString();
+                    int split = text.IndexOf("\r\n\r\n", StringComparison.Ordinal) + 4;
+                    int contentLength = 0;
+                    foreach (string line in text[..split].Split("\r\n"))
+                    {
+                        if (line.StartsWith("Content-Length:", StringComparison.OrdinalIgnoreCase))
+                        {
+                            int.TryParse(line["Content-Length:".Length..].Trim(), out contentLength);
+                        }
+                    }
+
+                    int alreadyRead = Encoding.ASCII.GetByteCount(text[split..]);
+                    while (alreadyRead < contentLength)
+                    {
+                        int read = await stream.ReadAsync(buffer);
+                        if (read <= 0)
+                        {
+                            break;
+                        }
+
+                        alreadyRead += read;
+                    }
+
+                    byte[] body = Encoding.UTF8.GetBytes("{\"object\":\"list\",\"data\":[]}");
+                    string reply =
+                        $"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {body.Length}\r\nConnection: close\r\n\r\n";
+                    await stream.WriteAsync(Encoding.ASCII.GetBytes(reply));
+                    await stream.WriteAsync(body);
+                    await stream.FlushAsync();
+                }
+                catch
+                {
+                    // The proxy may close the connection first; nothing to report.
+                }
+            }
+        }
+
+        public void Dispose() => _listener.Stop();
     }
 }

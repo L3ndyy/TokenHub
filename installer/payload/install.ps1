@@ -60,7 +60,20 @@ Set-ItemProperty $uninstallKey NoRepair 1 -Type DWord
 Set-ItemProperty $uninstallKey UninstallString `
     "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$(Join-Path $target 'uninstall.ps1')`""
 
-Write-Host "TokenHub $version установлен в $target"
-Write-Host 'Ключи и настройки лежат в %APPDATA%\TokenHub и при удалении не стираются.'
+# Start with Windows, minimised to the tray: the pool should be ready before the
+# first OpenCode prompt of the day. The app shows this switch as already on.
+$runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+New-Item -Path $runKey -Force | Out-Null
+Set-ItemProperty $runKey TokenHub "`"$appExe`" --minimized"
 
-Start-Process $appExe
+Write-Host "TokenHub $version установлен в $target"
+Write-Host 'Ключи и настройки лежат в %APPDATA%\TokenHub и при удалении сохраняются.'
+Write-Host ''
+
+# Ask instead of always launching, so a scripted install stays quiet.
+if ([Environment]::UserInteractive) {
+    $answer = Read-Host 'Запустить TokenHub сейчас? (Y/n)'
+    if ($answer -eq '' -or $answer -match '^(y|yes|д|да)$') {
+        Start-Process $appExe
+    }
+}

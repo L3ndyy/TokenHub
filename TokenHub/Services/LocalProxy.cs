@@ -19,14 +19,24 @@ public sealed class LocalProxy
 {
     public const int DefaultPort = 8477;
 
+    /// <summary>How long upstream may take to send response headers.</summary>
+    private static readonly TimeSpan FirstByteTimeout = TimeSpan.FromMinutes(2);
+
+    /// <summary>How long a streamed answer may stall between chunks.</summary>
+    private static readonly TimeSpan StreamIdleTimeout = TimeSpan.FromMinutes(3);
+
     public static LocalProxy Instance { get; } = new();
 
     private static readonly HttpClient Http = new(new SocketsHttpHandler
     {
         PooledConnectionLifetime = TimeSpan.FromMinutes(5),
         AutomaticDecompression = DecompressionMethods.None,
+        // A dead upstream must fail fast instead of hanging on the TCP handshake.
+        ConnectTimeout = TimeSpan.FromSeconds(15),
     })
     {
+        // The overall timeout stays infinite because answers stream; the first-byte
+        // and per-chunk timeouts below are what actually bound a request.
         Timeout = Timeout.InfiniteTimeSpan,
     };
 
@@ -59,6 +69,8 @@ public sealed class LocalProxy
     /// <summary>Raised on each key switch, and when the pool runs dry. Arg: title, text.</summary>
     public event Action<string, string>? Notice;
 
+    private int _statsDirty;
+
     /// <summary>
     /// Connects the proxy to whoever owns the settings. The app points at
     /// <c>%APPDATA%</c>, the Windows service at <c>%ProgramData%</c>.
@@ -67,6 +79,45 @@ public sealed class LocalProxy
     {
         _settings = settings;
         _save = save;
+        LoadStats();
+    }
+
+    /// <summary>Restores per-key counters saved by a previous run.</summary>
+    private void LoadStats()
+    {
+        foreach (var (id, entry) in StatsStore.Load())
+        {
+            _perKey[id] = new KeyStat
+            {
+                Requests = entry.Requests,
+                Failures = entry.Failures,
+                TotalMs = entry.TotalMs,
+                LastMs = entry.LastMs,
+                LastUtc = entry.LastUtc,
+            };
+        }
+    }
+
+    /// <summary>Writes the counters out; called every few answers and on shutdown.</summary>
+    private void FlushStats()
+    {
+        var snapshot = new Dictionary<string, StatsStore.Entry>(StringComparer.Ordinal);
+        foreach (var (id, stat) in _perKey)
+        {
+            lock (stat)
+            {
+                snapshot[id] = new StatsStore.Entry
+                {
+                    Requests = stat.Requests,
+                    Failures = stat.Failures,
+                    TotalMs = stat.TotalMs,
+                    LastMs = stat.LastMs,
+                    LastUtc = stat.LastUtc,
+                };
+            }
+        }
+
+        StatsStore.Save(snapshot);
     }
 
     private AppSettings Settings => _settings();
@@ -103,6 +154,8 @@ public sealed class LocalProxy
         Interlocked.Exchange(ref _completionTokens, 0);
         Interlocked.Exchange(ref _requests, 0);
         Interlocked.Exchange(ref _failovers, 0);
+        Interlocked.Exchange(ref _statsDirty, 0);
+        StatsStore.Clear();
     }
 
     /// <summary>Starts the listener. <paramref name="fixedPort"/> disables the port search.</summary>
@@ -174,6 +227,7 @@ public sealed class LocalProxy
         }
 
         await app.DisposeAsync();
+        FlushStats();
     }
 
     private static WebApplication Build(int port)
@@ -200,6 +254,17 @@ public sealed class LocalProxy
     {
         var cancelled = context.RequestAborted;
         string path = context.Request.Path.Value ?? "/";
+        string clientAuth = context.Request.Headers.Authorization.ToString();
+
+        // Loopback only, but every local process — and any web page in a browser —
+        // can reach that address. A foreign Host or Origin means the request was not
+        // meant for us, and a request without the pool credential is refused outright.
+        if (!IsLocalRequest(context) || !IsAuthorized(clientAuth))
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            await WriteJsonAsync(context, ErrorJson("forbidden", "Запрос отклонён локальным прокси TokenHub."));
+            return;
+        }
 
         if (path is "/__status" or "/status")
         {
@@ -208,10 +273,20 @@ public sealed class LocalProxy
         }
 
         byte[]? body = await ReadBodyAsync(context.Request, cancelled);
-        string clientAuth = context.Request.Headers.Authorization.ToString();
         string? model = ModelOf(body);
 
         var settings = Settings;
+
+        if (settings.FreeOnly
+            && !string.IsNullOrEmpty(model)
+            && !model.EndsWith(":free", StringComparison.OrdinalIgnoreCase))
+        {
+            context.Response.StatusCode = StatusCodes.Status400BadRequest;
+            await WriteJsonAsync(context, ErrorJson(
+                "free_only",
+                "В TokenHub включён режим «только бесплатные модели». Выберите модель с суффиксом :free."));
+            return;
+        }
 
         string url = BuildUrl(path, context.Request.QueryString.Value);
         var tried = new HashSet<string>();
@@ -224,9 +299,7 @@ public sealed class LocalProxy
         {
             bool allowProbe = settings.AutoFailover && attempt > 0;
             var key = NextCandidate(tried, model, allowProbe);
-            string? authorization = key is null
-                ? (string.IsNullOrEmpty(clientAuth) ? null : clientAuth)
-                : $"Bearer {key.Key}";
+            string? authorization = key is null ? null : $"Bearer {key.Key}";
 
             using var request = BuildRequest(context, url, body, authorization);
             HttpResponseMessage response;
@@ -234,7 +307,18 @@ public sealed class LocalProxy
 
             try
             {
-                response = await Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancelled);
+                // Bounds the wait for response headers. The answer itself may stream for
+                // minutes, so only the first byte is timed here; PumpAsync bounds the gaps.
+                using var firstByte = CancellationTokenSource.CreateLinkedTokenSource(cancelled);
+                firstByte.CancelAfter(FirstByteTimeout);
+                response = await Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, firstByte.Token);
+            }
+            catch (OperationCanceledException) when (!cancelled.IsCancellationRequested)
+            {
+                SetError("Token Harbor не ответил за 2 минуты");
+                context.Response.StatusCode = StatusCodes.Status504GatewayTimeout;
+                await WriteJsonAsync(context, ErrorJson("proxy_timeout", "Token Harbor не ответил за 2 минуты."));
+                return;
             }
             catch (Exception ex) when (!cancelled.IsCancellationRequested)
             {
@@ -349,6 +433,78 @@ public sealed class LocalProxy
         return request;
     }
 
+    /// <summary>
+    /// True only for requests addressed to loopback with no foreign <c>Origin</c>.
+    /// Without this a DNS-rebinding page or a form post from a random site could
+    /// drive the proxy, because it listens on 127.0.0.1 and has no login.
+    /// </summary>
+    private static bool IsLocalRequest(HttpContext context)
+    {
+        string host = context.Request.Host.Host;
+        bool loopbackHost = host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase)
+                            || host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
+                            || host.Equals("[::1]", StringComparison.OrdinalIgnoreCase)
+                            || host.Equals("::1", StringComparison.OrdinalIgnoreCase);
+        if (!loopbackHost)
+        {
+            return false;
+        }
+
+        if (!context.Request.Headers.TryGetValue("Origin", out var origin) || origin.Count == 0)
+        {
+            return true;
+        }
+
+        string value = origin.ToString();
+        return value.StartsWith("http://127.0.0.1", StringComparison.OrdinalIgnoreCase)
+               || value.StartsWith("http://localhost", StringComparison.OrdinalIgnoreCase)
+               || value.StartsWith("http://[::1]", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Accepts the pool credential written into opencode.json, or one of the pool's own
+    /// keys (older configs still contain a real key). An empty header is allowed so a
+    /// simple local health check keeps working; it can never spend tokens upstream,
+    /// because the proxy only forwards the keys it owns.
+    /// </summary>
+    private bool IsAuthorized(string authorization)
+    {
+        if (string.IsNullOrWhiteSpace(authorization))
+        {
+            return true;
+        }
+
+        string token = authorization.Trim();
+        if (token.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+        {
+            token = token[7..].Trim();
+        }
+
+        var settings = Settings;
+        if (!string.IsNullOrEmpty(settings.ProxyToken) && FixedTimeEquals(token, settings.ProxyToken))
+        {
+            return true;
+        }
+
+        return settings.Keys.Any(key => FixedTimeEquals(token, key.Key));
+    }
+
+    private static bool FixedTimeEquals(string left, string right)
+    {
+        if (left.Length != right.Length)
+        {
+            return false;
+        }
+
+        int diff = 0;
+        for (int i = 0; i < left.Length; i++)
+        {
+            diff |= left[i] ^ right[i];
+        }
+
+        return diff == 0;
+    }
+
     private static bool HopByHop(string name) =>
         name.Equals("Host", StringComparison.OrdinalIgnoreCase)
         || name.Equals("Connection", StringComparison.OrdinalIgnoreCase)
@@ -401,7 +557,16 @@ public sealed class LocalProxy
             int read;
             try
             {
-                read = await source.ReadAsync(buffer, cancelled);
+                // A stalled stream must not hold the client forever; a live SSE answer
+                // sends a heartbeat well inside this window.
+                using var idle = CancellationTokenSource.CreateLinkedTokenSource(cancelled);
+                idle.CancelAfter(StreamIdleTimeout);
+                read = await source.ReadAsync(buffer, idle.Token);
+            }
+            catch (OperationCanceledException) when (!cancelled.IsCancellationRequested)
+            {
+                EventLog.Write("Поток ответа остановлен: нет данных дольше 3 минут");
+                return;
             }
             catch (Exception) when (cancelled.IsCancellationRequested)
             {
@@ -589,6 +754,14 @@ public sealed class LocalProxy
             stat.LastMs = elapsedMs;
             stat.LastUtc = DateTime.UtcNow;
         }
+
+        // Counters are cheap to lose but annoying to lose on every restart, so they
+        // are written every couple of dozen answers instead of on each one.
+        if (Interlocked.Increment(ref _statsDirty) >= 25)
+        {
+            Interlocked.Exchange(ref _statsDirty, 0);
+            FlushStats();
+        }
     }
 
     // Classification of a failed response lives in PoolPolicy so it can be unit-tested.
@@ -741,7 +914,14 @@ public sealed class LocalProxy
     private string BuildUrl(string path, string? query)
     {
         var settings = Settings;
-        return $"{settings.ProxyBase.TrimEnd('/')}/{settings.ProxySecret}{path}{query}";
+
+        // The region proxy is optional: without it the same route goes straight to
+        // Token Harbor, exactly like the "напрямую" mode does.
+        string root = string.IsNullOrWhiteSpace(settings.ProxyBase)
+            ? settings.Upstream.TrimEnd('/')
+            : $"{settings.ProxyBase.TrimEnd('/')}/{settings.ProxySecret}";
+
+        return $"{root}{path}{query}";
     }
 
     private void SetError(string message)

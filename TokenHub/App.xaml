@@ -6,14 +6,14 @@
 
         <!-- ============ palette (dark values, theme service overrides them) ============ -->
         <SolidColorBrush x:Key="Br.Layer" Color="#59000000" />
-        <SolidColorBrush x:Key="Br.Popup" Color="#FF1C1C1C" />
-        <SolidColorBrush x:Key="Br.Card" Color="#0FFFFFFF" />
-        <SolidColorBrush x:Key="Br.CardBorder" Color="#17FFFFFF" />
+        <SolidColorBrush x:Key="Br.Popup" Color="#FF1B1B1F" />
+        <SolidColorBrush x:Key="Br.Card" Color="#10FFFFFF" />
+        <SolidColorBrush x:Key="Br.CardBorder" Color="#12FFFFFF" />
         <SolidColorBrush x:Key="Br.Text" Color="#FFFFFFFF" />
         <SolidColorBrush x:Key="Br.TextSecondary" Color="#B0FFFFFF" />
-        <SolidColorBrush x:Key="Br.Control" Color="#12FFFFFF" />
-        <SolidColorBrush x:Key="Br.ControlHover" Color="#1FFFFFFF" />
-        <SolidColorBrush x:Key="Br.ControlBorder" Color="#1FFFFFFF" />
+        <SolidColorBrush x:Key="Br.Control" Color="#14FFFFFF" />
+        <SolidColorBrush x:Key="Br.ControlHover" Color="#22FFFFFF" />
+        <SolidColorBrush x:Key="Br.ControlBorder" Color="#1AFFFFFF" />
         <SolidColorBrush x:Key="Br.Accent" Color="#FF4CC2FF" />
         <SolidColorBrush x:Key="Br.OnAccent" Color="#FF0A0A0A" />
         <SolidColorBrush x:Key="Br.AccentBorder" Color="#33FFFFFF" />
@@ -23,7 +23,7 @@
 
         <!-- ============ text ============ -->
         <Style x:Key="Title" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="26" />
+            <Setter Property="FontSize" Value="27" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Foreground" Value="{DynamicResource Br.Text}" />
         </Style>
@@ -31,7 +31,7 @@
         <Style x:Key="Subtitle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="13" />
             <Setter Property="Foreground" Value="{DynamicResource Br.TextSecondary}" />
-            <Setter Property="Margin" Value="0,4,0,0" />
+            <Setter Property="Margin" Value="0,6,0,0" />
         </Style>
 
         <Style x:Key="CardTitle" TargetType="TextBlock">
@@ -64,22 +64,22 @@
             <Setter Property="Background" Value="{DynamicResource Br.Card}" />
             <Setter Property="BorderBrush" Value="{DynamicResource Br.CardBorder}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="8" />
-            <Setter Property="Padding" Value="16" />
+            <Setter Property="CornerRadius" Value="14" />
+            <Setter Property="Padding" Value="22" />
         </Style>
 
         <!-- ============ buttons ============ -->
         <Style x:Key="AccentButton" TargetType="Button">
             <Setter Property="Foreground" Value="{DynamicResource Br.OnAccent}" />
             <Setter Property="Background" Value="{DynamicResource Br.Accent}" />
-            <Setter Property="Padding" Value="14,7" />
+            <Setter Property="Padding" Value="18,9" />
             <Setter Property="FontSize" Value="13" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="SnapsToDevicePixels" Value="True" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" CornerRadius="5"
+                        <Border x:Name="Bd" CornerRadius="8"
                                 Background="{TemplateBinding Background}"
                                 BorderThickness="1"
                                 BorderBrush="{DynamicResource Br.AccentBorder}"
@@ -88,7 +88,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Opacity" Value="0.88" />
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.9" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter TargetName="Bd" Property="Opacity" Value="0.75" />
@@ -105,14 +105,14 @@
         <Style x:Key="SubtleButton" TargetType="Button">
             <Setter Property="Foreground" Value="{DynamicResource Br.Text}" />
             <Setter Property="Background" Value="{DynamicResource Br.Control}" />
-            <Setter Property="Padding" Value="14,7" />
+            <Setter Property="Padding" Value="18,9" />
             <Setter Property="FontSize" Value="13" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="SnapsToDevicePixels" Value="True" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" CornerRadius="5"
+                        <Border x:Name="Bd" CornerRadius="8"
                                 Background="{TemplateBinding Background}"
                                 BorderThickness="1"
                                 BorderBrush="{DynamicResource Br.ControlBorder}"
@@ -136,7 +136,7 @@
         </Style>
 
         <Style x:Key="GlyphButton" TargetType="Button" BasedOn="{StaticResource SubtleButton}">
-            <Setter Property="Padding" Value="9,7" />
+            <Setter Property="Padding" Value="10,8" />
             <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets" />
             <Setter Property="FontSize" Value="13" />
         </Style>
@@ -150,11 +150,11 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" CornerRadius="8"
+                        <Border x:Name="Bd" CornerRadius="12"
                                 Background="{TemplateBinding Background}"
                                 BorderThickness="1"
                                 BorderBrush="{DynamicResource Br.ControlBorder}"
-                                Padding="14,12">
+                                Padding="20,18">
                             <ContentPresenter />
                         </Border>
                         <ControlTemplate.Triggers>
@@ -179,7 +179,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" Background="Transparent" CornerRadius="4">
+                        <Border x:Name="Bd" Background="Transparent" CornerRadius="6">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
@@ -196,7 +196,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" Background="Transparent" CornerRadius="4">
+                        <Border x:Name="Bd" Background="Transparent" CornerRadius="6">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
@@ -212,19 +212,19 @@
 
         <!-- ============ navigation ============ -->
         <Style x:Key="NavItem" TargetType="RadioButton">
-            <Setter Property="Height" Value="40" />
+            <Setter Property="Height" Value="44" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Foreground" Value="{DynamicResource Br.Text}" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="RadioButton">
                         <Grid>
-                            <Border x:Name="Bd" CornerRadius="6" Background="Transparent" Margin="0,1" />
-                            <Border x:Name="Ind" Width="3" Height="16" CornerRadius="2"
+                            <Border x:Name="Bd" CornerRadius="8" Background="Transparent" Margin="0,1" />
+                            <Border x:Name="Ind" Width="3" Height="18" CornerRadius="2"
                                     HorizontalAlignment="Left" Margin="3,0,0,0"
                                     Background="{DynamicResource Br.Accent}"
                                     Visibility="Collapsed" />
-                            <ContentPresenter Margin="14,0,10,0" VerticalAlignment="Center" />
+                            <ContentPresenter Margin="16,0,12,0" VerticalAlignment="Center" />
                         </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
@@ -242,18 +242,18 @@
 
         <!-- ============ switch ============ -->
         <Style x:Key="Switch" TargetType="ToggleButton">
-            <Setter Property="Width" Value="44" />
-            <Setter Property="Height" Value="22" />
+            <Setter Property="Width" Value="46" />
+            <Setter Property="Height" Value="24" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ToggleButton">
                         <Grid>
-                            <Border x:Name="Track" CornerRadius="11"
+                            <Border x:Name="Track" CornerRadius="12"
                                     Background="{DynamicResource Br.Control}"
                                     BorderThickness="1"
                                     BorderBrush="{DynamicResource Br.ControlBorder}" />
-                            <Ellipse x:Name="Knob" Width="14" Height="14"
+                            <Ellipse x:Name="Knob" Width="16" Height="16"
                                      Fill="{DynamicResource Br.TextSecondary}"
                                      HorizontalAlignment="Left" Margin="4,0,0,0" />
                         </Grid>
@@ -280,14 +280,14 @@
             <Setter Property="Foreground" Value="{DynamicResource Br.Text}" />
             <Setter Property="BorderBrush" Value="{DynamicResource Br.ControlBorder}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Padding" Value="10,7" />
+            <Setter Property="Padding" Value="14,10" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
             <Setter Property="FontSize" Value="13" />
             <Setter Property="FontFamily" Value="Cascadia Mono, Consolas" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="TextBox">
-                        <Border x:Name="Bd" CornerRadius="5"
+                        <Border x:Name="Bd" CornerRadius="8"
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}">
@@ -307,13 +307,13 @@
         <Style x:Key="Picker" TargetType="ComboBox">
             <Setter Property="FontSize" Value="13" />
             <Setter Property="Foreground" Value="{DynamicResource Br.Text}" />
-            <Setter Property="Height" Value="34" />
-            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="Height" Value="38" />
+            <Setter Property="Padding" Value="14,0" />
             <Setter Property="ItemContainerStyle">
                 <Setter.Value>
                     <Style TargetType="ComboBoxItem">
                         <Setter Property="Foreground" Value="{DynamicResource Br.Text}" />
-                        <Setter Property="Padding" Value="10,7" />
+                        <Setter Property="Padding" Value="12,8" />
                         <Setter Property="Template">
                             <Setter.Value>
                                 <ControlTemplate TargetType="ComboBoxItem">
@@ -349,7 +349,7 @@
                                     <ControlTemplate TargetType="ToggleButton">
                                         <Border Background="{DynamicResource Br.Control}"
                                                 BorderBrush="{DynamicResource Br.ControlBorder}"
-                                                BorderThickness="1" CornerRadius="7">
+                                                BorderThickness="1" CornerRadius="8">
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
@@ -362,7 +362,7 @@
                                                                   Content="{Binding SelectionBoxItem, RelativeSource={RelativeSource AncestorType=ComboBox}}"
                                                                   ContentTemplate="{Binding SelectionBoxItemTemplate, RelativeSource={RelativeSource AncestorType=ComboBox}}"
                                                                   ContentStringFormat="{Binding SelectionBoxItemStringFormat, RelativeSource={RelativeSource AncestorType=ComboBox}}" />
-                                                <TextBlock Grid.Column="1" Text="&#xE70D;" Margin="0,0,10,0"
+                                                <TextBlock Grid.Column="1" Text="&#xE70D;" Margin="0,0,12,0"
                                                            FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
                                                            FontSize="10"
                                                            Foreground="{DynamicResource Br.TextSecondary}"
@@ -378,7 +378,7 @@
                                    PopupAnimation="Fade">
                                 <Border Background="{DynamicResource Br.Popup}"
                                         BorderBrush="{DynamicResource Br.CardBorder}"
-                                        BorderThickness="1" CornerRadius="8" Margin="0,4,0,0"
+                                        BorderThickness="1" CornerRadius="10" Margin="0,6,0,0"
                                         MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
                                         MaxHeight="{TemplateBinding MaxDropDownHeight}">
                                     <ScrollViewer>

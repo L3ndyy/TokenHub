@@ -37,21 +37,21 @@ internal static class Theme
 
         var palette = new Dictionary<string, string>
         {
-            ["Br.Layer"] = dark ? "#59000000" : "#F2F6F6F6",
-            ["Br.Popup"] = dark ? "#FF1C1C1C" : "#FFFFFFFF",
-            ["Br.Card"] = dark ? "#0FFFFFFF" : "#B3FFFFFF",
-            ["Br.CardBorder"] = dark ? "#17FFFFFF" : "#12000000",
-            ["Br.Text"] = dark ? "#FFFFFFFF" : "#E4000000",
-            ["Br.TextSecondary"] = dark ? "#B0FFFFFF" : "#99000000",
-            ["Br.Control"] = dark ? "#12FFFFFF" : "#B3FFFFFF",
-            ["Br.ControlHover"] = dark ? "#1FFFFFFF" : "#FFFFFF",
-            ["Br.ControlBorder"] = dark ? "#1FFFFFFF" : "#14000000",
+            ["Br.Layer"] = dark ? "#59000000" : "#F2F4F8F8",
+            ["Br.Popup"] = dark ? "#FF1B1B1F" : "#FFFFFFFF",
+            ["Br.Card"] = dark ? "#10FFFFFF" : "#E6FFFFFF",
+            ["Br.CardBorder"] = dark ? "#12FFFFFF" : "#0E000000",
+            ["Br.Text"] = dark ? "#FFFFFFFF" : "#E61A1A1F",
+            ["Br.TextSecondary"] = dark ? "#B0FFFFFF" : "#8F5F6368",
+            ["Br.Control"] = dark ? "#14FFFFFF" : "#FFF2F4F9",
+            ["Br.ControlHover"] = dark ? "#22FFFFFF" : "#FFFFFFFF",
+            ["Br.ControlBorder"] = dark ? "#1AFFFFFF" : "#12000000",
             ["Br.Accent"] = accent,
             ["Br.OnAccent"] = dark ? "#FF0A0A0A" : "#FFFFFFFF",
             ["Br.AccentBorder"] = dark ? "#33FFFFFF" : "#1A000000",
             ["Br.Success"] = dark ? "#FF6CCB5F" : "#FF0F7B0F",
             ["Br.Danger"] = dark ? "#FFFF99A4" : "#FFC42B1C",
-            ["Br.Muted"] = dark ? "#8AFFFFFF" : "#73000000",
+            ["Br.Muted"] = dark ? "#8AFFFFFF" : "#8F000000",
         };
 
         foreach (var (key, hex) in palette)

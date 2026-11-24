@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Controls;
 using TokenHub.Services;
 
 namespace TokenHub;
@@ -35,6 +36,18 @@ public partial class FirstRunWindow : Window
             $"Скиллы:     {Skills.Folder}{Environment.NewLine}" +
             $"Пул ключей: {App.Settings.LocalBaseUrl}{Environment.NewLine}{Environment.NewLine}" +
             "TokenHub подключит OpenCode к локальному пулу, и ключи будут переключаться без перезапуска.";
+
+        // The pool is useless if there is nothing to point at it, so say so up front.
+        string? exe = Launcher.OpenCodeExe;
+        if (exe is null)
+        {
+            TxtOpenCode.Text = "OpenCode не найден. Установите его с opencode.ai — TokenHub настроит его сам.";
+            TxtOpenCode.SetResourceReference(TextBlock.ForegroundProperty, "Br.Danger");
+        }
+        else
+        {
+            TxtOpenCode.Text = "OpenCode найден: " + exe;
+        }
     }
 
     private void Later_Click(object sender, RoutedEventArgs e)
@@ -46,7 +59,7 @@ public partial class FirstRunWindow : Window
         DialogResult = false;
     }
 
-    private void Done_Click(object sender, RoutedEventArgs e)
+    private async void Done_Click(object sender, RoutedEventArgs e)
     {
         string key = TxtKey.Text.Trim();
 
@@ -64,8 +77,29 @@ public partial class FirstRunWindow : Window
             return;
         }
 
+        if (sender is Button done)
+        {
+            done.IsEnabled = false;
+        }
+
         try
         {
+            // A typo in the key is the most common first-run mistake, and it only shows
+            // up later as "OpenCode cannot answer". Check it now, through /v1/models.
+            if (key.Length > 0)
+            {
+                TxtStatus.Text = "Проверяю ключ…";
+                var probe = await Probes.KeyAsync(App.Settings, key);
+                if (!probe.Ok)
+                {
+                    TxtStatus.Text = "Ключ не подошёл — " + probe.Summary + ". " +
+                                    "Проверьте его в личном кабинете tokenharbor.ai.";
+                    return;
+                }
+            }
+
+            TxtStatus.Text = string.Empty;
+
             if (key.Length > 0 && App.Settings.Keys.All(k => k.Key != key))
             {
                 App.Settings.Keys.Add(new ApiKeyEntry
@@ -92,6 +126,13 @@ public partial class FirstRunWindow : Window
         catch (Exception ex)
         {
             TxtStatus.Text = "Не удалось сохранить настройки: " + ex.Message;
+        }
+        finally
+        {
+            if (sender is Button button)
+            {
+                button.IsEnabled = true;
+            }
         }
     }
 }

@@ -34,8 +34,9 @@ public partial class MainWindow : Window
     private DispatcherTimer? _liveTimer;
     private long _serviceRequests;
     private readonly Dictionary<string, (int Requests, int Failures, long AvgMs)> _serviceKeyStats = new();
-    private readonly Dictionary<string, ToggleButton> _skillChips = new();
+    private int _skillsShown;
     private string _serviceHealth = string.Empty;
+    private UpdateInfo? _pendingUpdate;
 
     public MainWindow()
     {
@@ -110,6 +111,13 @@ public partial class MainWindow : Window
         _ = StartupChecksAsync();
         OpenWizardIfNeeded();
 
+        // A settings file that had to fall back to its backup is important enough to
+        // say out loud; the log line alone would be easy to miss.
+        if (!string.IsNullOrEmpty(SettingsStore.LastLoadError))
+        {
+            Journal(SettingsStore.LastLoadError, Kind.Fail);
+        }
+
         // Item T14: an autostart launch should stay in the tray, not pop up.
         if (App.StartMinimized || settings.StartMinimized)
         {
@@ -137,7 +145,45 @@ public partial class MainWindow : Window
             return;
         }
 
-        Dispatcher.BeginInvoke(new Action(OpenWizard));
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            // A one-screen tour first: what the app does, then the wizard. Both are
+            // skippable, and the dashboard buttons bring either one back.
+            if (!App.Settings.IntroSeen)
+            {
+                var intro = new IntroWindow { Owner = this };
+                intro.ShowDialog();
+                App.Settings.IntroSeen = true;
+                SettingsStore.Save(App.Settings);
+
+                if (!intro.GoFurther)
+                {
+                    return;
+                }
+            }
+
+            OpenWizard();
+        }));
+    }
+
+    private void ShowIntro_Click(object sender, RoutedEventArgs e) =>
+        ShowIntro(thenWizard: false);
+
+    private void ShowIntro(bool thenWizard)
+    {
+        var intro = new IntroWindow { Owner = this };
+        intro.ShowDialog();
+
+        if (!App.Settings.IntroSeen)
+        {
+            App.Settings.IntroSeen = true;
+            SettingsStore.Save(App.Settings);
+        }
+
+        if (thenWizard || intro.GoFurther)
+        {
+            OpenWizard();
+        }
     }
 
     // ---------------------------------------------------------------- window geometry (V8)
@@ -618,6 +664,9 @@ public partial class MainWindow : Window
         TxtUpstream.Text = s.Upstream;
         TxtBaseUrl.Text = s.BaseUrl;
 
+        FillModels(s.DefaultModel);
+        TglFreeOnly.IsChecked = s.FreeOnly;
+
         MarkAccent();
         _loading = false;
 
@@ -628,6 +677,65 @@ public partial class MainWindow : Window
     }
 
     // ---------------------------------------------------------------- pool behaviour (T6, T16)
+
+    /// <summary>Fills the model picker; keeps a custom model visible instead of dropping it.</summary>
+    private void FillModels(string current)
+    {
+        var models = OpenCodeConfig.KnownModels().ToList();
+        string id = current.StartsWith("tokenharbor/", StringComparison.OrdinalIgnoreCase)
+            ? current["tokenharbor/".Length..]
+            : current;
+
+        if (!string.IsNullOrWhiteSpace(id) && !models.Contains(id, StringComparer.OrdinalIgnoreCase))
+        {
+            models.Insert(0, id);
+        }
+
+        CmbModel.ItemsSource = models;
+        CmbModel.SelectedItem = models.FirstOrDefault(m => string.Equals(m, id, StringComparison.OrdinalIgnoreCase))
+                                ?? models.FirstOrDefault();
+    }
+
+    private void Model_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading || CmbModel.SelectedItem is not string model)
+        {
+            return;
+        }
+
+        App.Settings.DefaultModel = "tokenharbor/" + model;
+        SettingsStore.Save(App.Settings);
+
+        // Only touch opencode.json when the pool actually drives it.
+        if (App.Settings.UsePool && OpenCodeConfig.Exists)
+        {
+            try
+            {
+                OpenCodeConfig.SetProvider(App.Settings.LocalBaseUrl, App.Settings.ProxyToken, App.Settings.DefaultModel);
+            }
+            catch (Exception ex)
+            {
+                Journal("Не удалось записать модель в OpenCode: " + ex.Message, Kind.Fail);
+                return;
+            }
+        }
+
+        Journal($"Модель по умолчанию: {model}", Kind.Ok);
+    }
+
+    private void FreeOnly_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loading)
+        {
+            return;
+        }
+
+        App.Settings.FreeOnly = TglFreeOnly.IsChecked == true;
+        SettingsStore.Save(App.Settings);
+        Journal(
+            App.Settings.FreeOnly ? "Включены только бесплатные модели" : "Разрешены все модели",
+            Kind.Ok);
+    }
 
     private static void SelectCombo(ComboBox combo, string tag)
     {
@@ -762,6 +870,63 @@ public partial class MainWindow : Window
         }
 
         await OfferServiceUpdateAsync();
+        await CheckUpdateSilentlyAsync();
+    }
+
+    /// <summary>
+    /// One quiet look at GitHub on start-up. A failed check stays quiet — the button in
+    /// "Быстрые действия" is there for anyone who wants to see the error.
+    /// </summary>
+    private async Task CheckUpdateSilentlyAsync()
+    {
+        if (App.StartMinimized)
+        {
+            return;
+        }
+
+        var (ok, newer, info, _) = await Updater.CheckAsync();
+        if (!ok || !newer || info is null)
+        {
+            return;
+        }
+
+        _pendingUpdate = info;
+        TxtUpdateTitle.Text = $"Доступна версия {info.Version}";
+        TxtUpdateDetail.Text = $"У вас {Updater.CurrentVersion}. Установщик скачается и запустится сам.";
+        UpdateBanner.Visibility = Visibility.Visible;
+    }
+
+    private void DismissUpdateBanner_Click(object sender, RoutedEventArgs e) =>
+        UpdateBanner.Visibility = Visibility.Collapsed;
+
+    private async void UpdateBanner_Click(object sender, RoutedEventArgs e)
+    {
+        if (_pendingUpdate is null)
+        {
+            return;
+        }
+
+        await InstallUpdateAsync(_pendingUpdate);
+    }
+
+    /// <summary>Downloads the installer and starts it; the app exits so files can be replaced.</summary>
+    private async Task InstallUpdateAsync(UpdateInfo info)
+    {
+        try
+        {
+            Busy(true);
+            Status($"Скачиваю {info.Version}...", Kind.Busy);
+            string path = await Updater.DownloadAndRunAsync(info);
+            Busy(false);
+            Status($"Установщик {info.Version} запущен", Kind.Ok);
+            EventLog.Write($"Обновление: запущен установщик {path}");
+        }
+        catch (Exception ex)
+        {
+            Busy(false);
+            Status("Не удалось скачать установщик", Kind.Fail);
+            MessageBox.Show(this, ex.Message, "Обновление", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
 
     /// <summary>
@@ -1172,21 +1337,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        try
-        {
-            Busy(true);
-            Status($"Скачиваю {info.Version}...", Kind.Busy);
-            string path = await Updater.DownloadAndRunAsync(info);
-            Busy(false);
-            Status($"Установщик {info.Version} запущен", Kind.Ok);
-            EventLog.Write($"Обновление: запущен установщик {path}");
-        }
-        catch (Exception ex)
-        {
-            Busy(false);
-            Status("Не удалось скачать установщик", Kind.Fail);
-            MessageBox.Show(this, ex.Message, "Обновление", MessageBoxButton.OK, MessageBoxImage.Warning);
-        }
+        await InstallUpdateAsync(info);
     }
 
     private async void CheckProxy_Click(object sender, RoutedEventArgs e)
@@ -2040,12 +2191,14 @@ public partial class MainWindow : Window
                 return false;
             }
 
+            App.Settings.EnsureProxyToken();
             App.Settings.UsePool = true;
             SettingsStore.Save(App.Settings);
 
-            string? key = App.Settings.FirstAvailableKey?.Key
-                          ?? App.Settings.Keys.FirstOrDefault()?.Key;
-            string? backup = OpenCodeConfig.SetProvider(App.Settings.LocalBaseUrl, key);
+            string? backup = OpenCodeConfig.SetProvider(
+                App.Settings.LocalBaseUrl,
+                App.Settings.ProxyToken,
+                App.Settings.DefaultModel);
             string backupLine = backup is null
                 ? "Создан новый конфиг OpenCode."
                 : $"Бэкап конфига: {Path.GetFileName(backup)}";
@@ -2228,6 +2381,91 @@ public partial class MainWindow : Window
 
     private void OpenWizard_Click(object sender, RoutedEventArgs e) => OpenWizard();
 
+    /// <summary>
+    /// The "one button" setup: files, pool credential, Windows service (one UAC prompt)
+    /// and the OpenCode config, in that order. Each step is skipped when already done.
+    /// </summary>
+    private async void SetupEverything_Click(object sender, RoutedEventArgs e)
+    {
+        if (App.Settings.Keys.Count == 0)
+        {
+            Status("Сначала добавьте ключ — откроется мастер", Kind.Unknown);
+            OpenWizard();
+            return;
+        }
+
+        Busy(true);
+        Status("Настраиваю TokenHub и OpenCode…", Kind.Busy);
+
+        try
+        {
+            App.Settings.EnsureProxyToken();
+            App.Settings.UsePool = true;
+            SettingsStore.Save(App.Settings);
+
+            // The service keeps the pool alive with the window closed; without its
+            // binaries the in-app listener does the same job for this session.
+            if (PoolService.PayloadReady)
+            {
+                switch (PoolService.Current)
+                {
+                    case PoolService.State.NotInstalled:
+                        await RunServiceAsync(PoolService.Install, "Устанавливаю службу", PoolService.State.Running);
+                        break;
+                    case PoolService.State.Stopped:
+                        await RunServiceAsync(PoolService.StartService, "Запускаю службу", PoolService.State.Running);
+                        break;
+                    case PoolService.State.Running when PoolService.PayloadOutdated:
+                        await RunServiceAsync(PoolService.Update, "Обновляю файлы службы", PoolService.State.Running);
+                        break;
+                }
+            }
+
+            if (PoolService.Current != PoolService.State.Running && !LocalProxy.Instance.Running)
+            {
+                await LocalProxy.Instance.StartAsync();
+            }
+
+            OpenCodeConfig.SetProvider(
+                App.Settings.LocalBaseUrl,
+                App.Settings.ProxyToken,
+                App.Settings.DefaultModel);
+
+            EventLog.Write("Одна кнопка: OpenCode подключён к пулу, служба — " + PoolService.Describe());
+
+            RefreshAllFromSettings();
+            RenderSkills();
+            RefreshServiceState();
+            Busy(false);
+
+            string proxy = PoolService.Current == PoolService.State.Running
+                ? "служба Windows"
+                : LocalProxy.Instance.Running ? "само приложение" : "не запущен";
+
+            Status($"Готово: OpenCode подключён, пул — {proxy}", Kind.Ok);
+
+            MessageBox.Show(
+                this,
+                "Готово. Что сделано:" + Environment.NewLine +
+                $"• файлы настроек: {SettingsStore.Directory}" + Environment.NewLine +
+                $"• пул ключей: {proxy}" + Environment.NewLine +
+                $"• OpenCode: {App.Settings.LocalBaseUrl} (модель {App.Settings.DefaultModel})" +
+                Environment.NewLine + Environment.NewLine +
+                (Launcher.OpenCodeRunningCount() > 0
+                    ? "Перезапустите OpenCode, чтобы он прочитал новый конфиг."
+                    : "Можно запускать OpenCode — он уже смотрит на пул."),
+                "TokenHub",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            Busy(false);
+            Status("Не удалось настроить всё: " + ex.Message, Kind.Fail);
+            EventLog.Write("Одна кнопка: " + ex);
+        }
+    }
+
     /// <summary>Opens the setup wizard, also used on the very first run.</summary>
     private void OpenWizard()
     {
@@ -2298,50 +2536,130 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>Draws the shipped skill collection as selectable chips.</summary>
+    /// <summary>
+    /// Draws the shipped skill collection grouped by purpose: a short description and a
+    /// one-click install for every skill, instead of a wall of 158 chips.
+    /// </summary>
     private void RenderSkills()
     {
-        if (SkillsList is null)
+        if (SkillsGroups is null)
         {
             return;
         }
 
-        _skillChips.Clear();
-        SkillsList.Children.Clear();
+        SkillsGroups.Children.Clear();
 
         string filter = TxtSkillSearch?.Text?.Trim() ?? string.Empty;
+        var visible = Skills.Catalog
+            .Where(skill => filter.Length == 0
+                            || skill.Name.Contains(filter, StringComparison.OrdinalIgnoreCase)
+                            || skill.Description.Contains(filter, StringComparison.OrdinalIgnoreCase))
+            .ToList();
 
-        foreach (var skill in Skills.Catalog)
+        _skillsShown = visible.Count;
+
+        var byGroup = visible
+            .GroupBy(Skills.GroupFor)
+            .ToDictionary(group => group.Key.Name, group => group.ToList());
+
+        foreach (var group in Skills.Groups)
         {
-            if (filter.Length > 0
-                && !skill.Name.Contains(filter, StringComparison.OrdinalIgnoreCase)
-                && !skill.Description.Contains(filter, StringComparison.OrdinalIgnoreCase))
+            if (!byGroup.TryGetValue(group.Name, out var items) || items.Count == 0)
             {
                 continue;
             }
 
-            // A trailing dot marks an installed skill without needing a second control.
-            string label = Skills.IsInstalled(skill.Name) ? skill.Name + " ·" : skill.Name;
-
-            var chip = new ToggleButton
+            var section = new StackPanel { Margin = new Thickness(0, 0, 0, 20) };
+            section.Children.Add(new TextBlock
             {
-                Style = (Style)FindResource("SkillChip"),
-                Content = label,
-                Tag = skill.Name,
-                ToolTip = string.IsNullOrEmpty(skill.Description)
-                    ? skill.Name
-                    : $"{skill.Name}{Environment.NewLine}{Environment.NewLine}{skill.Description}",
-            };
+                Text = $"{group.Name} · {items.Count}",
+                Style = (Style)FindResource("CardTitle"),
+            });
+            section.Children.Add(new TextBlock
+            {
+                Text = group.Description,
+                Style = (Style)FindResource("Caption"),
+                Margin = new Thickness(0, 4, 0, 0),
+            });
 
-            chip.Checked += (_, _) => UpdateSkillsHint();
-            chip.Unchecked += (_, _) => UpdateSkillsHint();
+            foreach (var skill in items)
+            {
+                section.Children.Add(SkillRow(skill));
+            }
 
-            _skillChips[skill.Name] = chip;
-            SkillsList.Children.Add(chip);
+            SkillsGroups.Children.Add(section);
+        }
+
+        if (_skillsShown == 0)
+        {
+            SkillsGroups.Children.Add(new TextBlock
+            {
+                Text = Skills.Catalog.Count == 0 ? "В этой сборке нет набора скиллов." : "Ничего не найдено.",
+                Style = (Style)FindResource("Caption"),
+            });
         }
 
         RefreshSkillsState();
         UpdateSkillsHint();
+    }
+
+    /// <summary>One skill: name, its own description, and an install button or a quiet "done".</summary>
+    private FrameworkElement SkillRow(SkillInfo skill)
+    {
+        var row = new DockPanel { LastChildFill = true, Margin = new Thickness(0, 12, 0, 0) };
+
+        if (Skills.IsInstalled(skill.Name))
+        {
+            var done = new TextBlock
+            {
+                Text = "Установлено",
+                Style = (Style)FindResource("Caption"),
+                Foreground = (Brush)FindResource("Br.Success"),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(12, 0, 0, 0),
+            };
+            DockPanel.SetDock(done, Dock.Right);
+            row.Children.Add(done);
+        }
+        else
+        {
+            var install = new Button
+            {
+                Content = "Установить",
+                Style = (Style)FindResource("SubtleButton"),
+                Padding = new Thickness(12, 5, 12, 5),
+                FontSize = 12,
+                MinWidth = 108,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(12, 0, 0, 0),
+            };
+            install.Click += (_, _) => InstallSkills(new[] { skill.Name }, skill.Name);
+            DockPanel.SetDock(install, Dock.Right);
+            row.Children.Add(install);
+        }
+
+        var text = new StackPanel();
+        text.Children.Add(new TextBlock
+        {
+            Text = skill.Name,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = (Brush)FindResource("Br.Text"),
+        });
+
+        if (!string.IsNullOrWhiteSpace(skill.Description))
+        {
+            text.Children.Add(new TextBlock
+            {
+                Text = skill.Description,
+                Style = (Style)FindResource("Caption"),
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 3, 8, 0),
+                MaxWidth = 620,
+            });
+        }
+
+        row.Children.Add(text);
+        return row;
     }
 
     private void RefreshSkillsState()
@@ -2364,14 +2682,9 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (_skillChips.Count == 0)
-        {
-            TxtSkillsHint.Text = Skills.Catalog.Count == 0 ? string.Empty : "Ничего не найдено.";
-            return;
-        }
-
-        int selected = _skillChips.Count(pair => pair.Value.IsChecked == true);
-        TxtSkillsHint.Text = $"Выбрано: {selected} из {_skillChips.Count}. Точка после названия — скилл уже установлен.";
+        TxtSkillsHint.Text = Skills.Catalog.Count == 0
+            ? string.Empty
+            : $"Показано: {_skillsShown} из {Skills.Catalog.Count}. Установлено: {Skills.InstalledCount}.";
     }
 
     private void SkillSearch_Changed(object sender, TextChangedEventArgs e)
@@ -2386,22 +2699,6 @@ public partial class MainWindow : Window
 
     private void InstallAllSkills_Click(object sender, RoutedEventArgs e) =>
         InstallSkills(Skills.Catalog.Select(skill => skill.Name), "все");
-
-    private void InstallSelectedSkills_Click(object sender, RoutedEventArgs e)
-    {
-        var chosen = _skillChips
-            .Where(pair => pair.Value.IsChecked == true)
-            .Select(pair => pair.Key)
-            .ToList();
-
-        if (chosen.Count == 0)
-        {
-            Status("Сначала выберите хотя бы один скилл", Kind.Fail);
-            return;
-        }
-
-        InstallSkills(chosen, "выбранные");
-    }
 
     private void InstallSkills(IEnumerable<string> names, string what)
     {

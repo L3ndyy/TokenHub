@@ -1,0 +1,63 @@
+<Window x:Class="TokenHub.IntroWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="TokenHub — коротко о главном"
+        Height="540" Width="640" MinHeight="440" MinWidth="520"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource Br.Popup}"
+        FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="13"
+        TextOptions.TextFormattingMode="Display" UseLayoutRounding="True">
+
+    <Grid Margin="22">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0">
+            <TextBlock Text="Что делает TokenHub" Style="{StaticResource Title}" />
+            <TextBlock Style="{StaticResource Subtitle}"
+                       Text="Три вещи, которые стоит знать до настройки" />
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,18,0,0">
+            <StackPanel>
+
+                <Border Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Text="Один пул вместо одного ключа" Style="{StaticResource CardTitle}" />
+                        <TextBlock Style="{StaticResource Body}" Margin="0,8,0,0"
+                                   Text="Добавьте несколько ключей Token Harbor. Когда у одного заканчивается лимит, TokenHub незаметно берёт следующий — диалог в OpenCode не прерывается." />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}" Margin="0,12,0,0">
+                    <StackPanel>
+                        <TextBlock Text="OpenCode настраивается сам" Style="{StaticResource CardTitle}" />
+                        <TextBlock Style="{StaticResource Body}" Margin="0,8,0,0"
+                                   Text="TokenHub создаёт нужные файлы и прописывает адрес пула в opencode.json. В самом файле лежит служебный ключ, а не ваш настоящий — его видно только TokenHub." />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}" Margin="0,12,0,0">
+                    <StackPanel>
+                        <TextBlock Text="Скиллы под рукой" Style="{StaticResource CardTitle}" />
+                        <TextBlock Style="{StaticResource Body}" Margin="0,8,0,0"
+                                   Text="Готовые наборы инструкций для OpenCode: Word, Roblox, тесты, дизайн. Во вкладке «Скиллы» они разложены по задачам, у каждого есть описание и кнопка установки." />
+                    </StackPanel>
+                </Border>
+
+                <TextBlock Style="{StaticResource Caption}" Margin="0,14,0,0" TextWrapping="Wrap"
+                           Text="Дальше — короткий мастер: ключ, скиллы и подключение OpenCode. Этот обзор больше не появится." />
+            </StackPanel>
+        </ScrollViewer>
+
+        <DockPanel Grid.Row="2" Margin="0,18,0,0" LastChildFill="False">
+            <Button DockPanel.Dock="Left" Style="{StaticResource SubtleButton}" Content="Пропустить"
+                    Click="Skip_Click" />
+            <Button DockPanel.Dock="Right" Style="{StaticResource AccentButton}" Content="Дальше"
+                    Click="Next_Click" Margin="8,0,0,0" />
+        </DockPanel>
+    </Grid>
+</Window>

@@ -96,6 +96,33 @@ public sealed class AppSettings
     /// </summary>
     public bool FirstRunDone { get; set; }
 
+    /// <summary>
+    /// Set once the short tour of the app has been shown or skipped.
+    /// </summary>
+    public bool IntroSeen { get; set; }
+
+    /// <summary>
+    /// Credential written into opencode.json instead of a real key. The proxy accepts
+    /// it and swaps in a working key, so the user's real keys never sit in a plain
+    /// file that other tools can read.
+    /// </summary>
+    public string ProxyToken { get; set; } = string.Empty;
+
+    /// <summary>Only allow <c>*:free</c> models through the pool.</summary>
+    public bool FreeOnly { get; set; }
+
+    /// <summary>Model written into opencode.json as the default.</summary>
+    public string DefaultModel { get; set; } = "tokenharbor/deepseek-v4.1-flash:free";
+
+    /// <summary>Creates the pool credential once, so OpenCode and the proxy agree on it.</summary>
+    public void EnsureProxyToken()
+    {
+        if (string.IsNullOrWhiteSpace(ProxyToken))
+        {
+            ProxyToken = "thk_pool_" + Guid.NewGuid().ToString("N")[..24];
+        }
+    }
+
     /// <summary>Sort used when drawing the key list (item V6). Empty/“manual” keeps the pool order.</summary>
     public string KeysSort { get; set; } = "manual";
 
@@ -154,29 +181,59 @@ public static class SettingsStore
 
     public static void Save(AppSettings settings) => SaveTo(FilePath, settings);
 
+    /// <summary>Set when the last load had to fall back to a backup or failed outright.</summary>
+    public static string? LastLoadError { get; private set; }
+
+    /// <summary>Set when the last save failed, so the UI can say so instead of losing keys silently.</summary>
+    public static string? LastSaveError { get; private set; }
+
     /// <summary>Reads a settings file from any path; also used by the Windows service.</summary>
     public static AppSettings LoadFrom(string path)
     {
-        try
-        {
-            if (File.Exists(path))
-            {
-                var loaded = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(path));
-                if (loaded is not null)
-                {
-                    loaded.Keys ??= new List<ApiKeyEntry>();
-                    foreach (var key in loaded.Keys)
-                    {
-                        key.BlockedModels ??= new List<string>();
-                    }
+        LastLoadError = null;
 
-                    return loaded;
-                }
-            }
-        }
-        catch
+        if (!File.Exists(path) && !File.Exists(path + ".bak"))
         {
-            // A broken settings file must never stop the app from starting.
+            return new AppSettings();
+        }
+
+        // The live file first, then the copy written just before the last save. A
+        // truncated settings.json used to mean "no keys at all", which is the one
+        // failure a key manager must never have.
+        foreach (string candidate in new[] { path, path + ".bak" })
+        {
+            try
+            {
+                if (!File.Exists(candidate))
+                {
+                    continue;
+                }
+
+                var loaded = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(candidate));
+                if (loaded is null)
+                {
+                    continue;
+                }
+
+                loaded.Keys ??= new List<ApiKeyEntry>();
+                foreach (var key in loaded.Keys)
+                {
+                    key.BlockedModels ??= new List<string>();
+                }
+
+                if (!string.Equals(candidate, path, StringComparison.OrdinalIgnoreCase))
+                {
+                    LastLoadError = "Основной файл настроек повреждён — загружена резервная копия.";
+                    EventLog.Write(LastLoadError);
+                }
+
+                return loaded;
+            }
+            catch (Exception ex)
+            {
+                LastLoadError = "Не удалось прочитать настройки: " + ex.Message;
+                EventLog.Write($"{candidate}: {ex.Message}");
+            }
         }
 
         return new AppSettings();
@@ -185,6 +242,8 @@ public static class SettingsStore
     /// <summary>Writes a settings file to any path; also used by the Windows service.</summary>
     public static void SaveTo(string path, AppSettings settings)
     {
+        LastSaveError = null;
+
         try
         {
             lock (Gate)
@@ -195,13 +254,26 @@ public static class SettingsStore
                     System.IO.Directory.CreateDirectory(folder);
                 }
 
-                File.WriteAllText(path, JsonSerializer.Serialize(settings, Options));
+                string text = JsonSerializer.Serialize(settings, Options);
+                string temp = path + ".tmp";
+                File.WriteAllText(temp, text);
+
+                if (File.Exists(path))
+                {
+                    // Atomic on NTFS and keeps the previous good file as .bak.
+                    File.Replace(temp, path, path + ".bak", ignoreMetadataErrors: true);
+                }
+                else
+                {
+                    File.Move(temp, path);
+                }
             }
         }
         catch (Exception ex)
         {
             // Settings are a convenience, not critical state — but a silent failure
             // hides real bugs, so record it in the event log (item T9/T12).
+            LastSaveError = ex.Message;
             EventLog.Write("Не удалось сохранить настройки: " + ex.Message);
         }
     }

@@ -16,6 +16,30 @@ public partial class App : Application
     {
         StartMinimized = e.Args.Any(a => string.Equals(a, "--minimized", StringComparison.OrdinalIgnoreCase));
 
+        // A crash in the UI thread must be logged and explained, not silently kill the
+        // app while OpenCode keeps talking to a proxy that no longer exists.
+        DispatcherUnhandledException += (_, args) =>
+        {
+            EventLog.Write("Необработанная ошибка: " + args.Exception);
+            args.Handled = true;
+            MessageBox.Show(
+                "Что-то пошло не так, но TokenHub продолжает работать." + Environment.NewLine + Environment.NewLine +
+                args.Exception.Message + Environment.NewLine + Environment.NewLine +
+                "Подробности записаны в events.log (Настройки → Открыть папку).",
+                "TokenHub",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        };
+
+        AppDomain.CurrentDomain.UnhandledException += (_, args) =>
+            EventLog.Write("Критическая ошибка: " + args.ExceptionObject);
+
+        TaskScheduler.UnobservedTaskException += (_, args) =>
+        {
+            EventLog.Write("Фоновая ошибка: " + args.Exception);
+            args.SetObserved();
+        };
+
         // Item T3: only one TokenHub may run. A second launch just wakes the first.
         _instance = new Mutex(true, @"Local\TokenHub.SingleInstance", out bool createdNew);
         if (!createdNew)
@@ -30,6 +54,10 @@ public partial class App : Application
 
         // Daily token totals live next to the settings file this process owns.
         UsageStore.Configure(SettingsStore.FilePath);
+        StatsStore.Configure(SettingsStore.FilePath);
+
+        // The pool credential is what opencode.json carries instead of a real key.
+        Settings.EnsureProxyToken();
 
         // Item T1: rewrite once so any keys stored in plain text by older versions
         // are upgraded to DPAPI ciphertext right away.
@@ -120,7 +148,7 @@ public partial class App : Application
                 return;
             }
 
-            OpenCodeConfig.SetProvider(wanted, Settings.FirstAvailableKey?.Key);
+            OpenCodeConfig.SetProvider(wanted, Settings.ProxyToken, Settings.DefaultModel);
         }
         catch
         {
@@ -140,7 +168,10 @@ public partial class App : Application
         }
 
         string? key = OpenCodeConfig.GetApiKey();
-        if (string.IsNullOrWhiteSpace(key) || !key.StartsWith("thk_", StringComparison.OrdinalIgnoreCase))
+        if (string.IsNullOrWhiteSpace(key)
+            || !key.StartsWith("thk_", StringComparison.OrdinalIgnoreCase)
+            || key.StartsWith("thk_pool_", StringComparison.OrdinalIgnoreCase)
+            || key == Settings.ProxyToken)
         {
             return;
         }

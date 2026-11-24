@@ -40,36 +40,6 @@
             </Setter>
         </Style>
 
-        <Style x:Key="SkillChip" TargetType="ToggleButton">
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Foreground" Value="{DynamicResource Br.Text}" />
-            <Setter Property="Margin" Value="0,0,6,6" />
-            <Setter Property="ToolTipService.ShowDuration" Value="30000" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ToggleButton">
-                        <Border x:Name="Bd" CornerRadius="6"
-                                Background="{DynamicResource Br.Control}"
-                                BorderBrush="{DynamicResource Br.ControlBorder}"
-                                BorderThickness="1">
-                            <ContentPresenter x:Name="Cp" Margin="10,5"
-                                              HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Br.ControlHover}" />
-                            </Trigger>
-                            <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Br.Accent}" />
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Br.Accent}" />
-                                <Setter TargetName="Cp" Property="TextElement.Foreground" Value="{DynamicResource Br.OnAccent}" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
         <Style x:Key="Swatch" TargetType="Button">
             <Setter Property="Width" Value="30" />
             <Setter Property="Height" Value="30" />
@@ -136,7 +106,8 @@
 
                 <StackPanel Grid.Column="0" Margin="10,6,6,10">
                     <RadioButton x:Name="NavHome" GroupName="nav" Style="{StaticResource NavItem}"
-                                 IsChecked="True" Tag="home" Checked="Nav_Checked">
+                                 IsChecked="True" Tag="home" Checked="Nav_Checked"
+                                 AutomationProperties.Name="Главная">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE80F;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14" VerticalAlignment="Center" />
                             <TextBlock Text="Главная" Margin="12,0,0,0" VerticalAlignment="Center" />
@@ -144,7 +115,8 @@
                     </RadioButton>
 
                     <RadioButton x:Name="NavLaunch" GroupName="nav" Style="{StaticResource NavItem}"
-                                 Tag="launch" Checked="Nav_Checked">
+                                 Tag="launch" Checked="Nav_Checked"
+                                 AutomationProperties.Name="Запуск">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE768;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14" VerticalAlignment="Center" />
                             <TextBlock Text="Запуск" Margin="12,0,0,0" VerticalAlignment="Center" />
@@ -152,7 +124,8 @@
                     </RadioButton>
 
                     <RadioButton x:Name="NavNetwork" GroupName="nav" Style="{StaticResource NavItem}"
-                                 Tag="network" Checked="Nav_Checked">
+                                 Tag="network" Checked="Nav_Checked"
+                                 AutomationProperties.Name="Сеть и прокси">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE774;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14" VerticalAlignment="Center" />
                             <TextBlock Text="Сеть и прокси" Margin="12,0,0,0" VerticalAlignment="Center" />
@@ -160,7 +133,8 @@
                     </RadioButton>
 
                     <RadioButton x:Name="NavKeys" GroupName="nav" Style="{StaticResource NavItem}"
-                                 Tag="keys" Checked="Nav_Checked">
+                                 Tag="keys" Checked="Nav_Checked"
+                                 AutomationProperties.Name="Ключи">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE72E;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14" VerticalAlignment="Center" />
                             <TextBlock Text="Ключи" Margin="12,0,0,0" VerticalAlignment="Center" />
@@ -168,7 +142,8 @@
                     </RadioButton>
 
                     <RadioButton x:Name="NavSkills" GroupName="nav" Style="{StaticResource NavItem}"
-                                 Tag="skills" Checked="Nav_Checked">
+                                 Tag="skills" Checked="Nav_Checked"
+                                 AutomationProperties.Name="Скиллы">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE8F1;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14" VerticalAlignment="Center" />
                             <TextBlock Text="Скиллы" Margin="12,0,0,0" VerticalAlignment="Center" />
@@ -176,7 +151,8 @@
                     </RadioButton>
 
                     <RadioButton x:Name="NavSettings" GroupName="nav" Style="{StaticResource NavItem}"
-                                 Tag="settings" Checked="Nav_Checked">
+                                 Tag="settings" Checked="Nav_Checked"
+                                 AutomationProperties.Name="Настройки">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE713;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14" VerticalAlignment="Center" />
                             <TextBlock Text="Настройки" Margin="12,0,0,0" VerticalAlignment="Center" />
@@ -191,6 +167,25 @@
                         <StackPanel x:Name="PanelHome" Margin="18,10,0,0">
                             <TextBlock Text="Главная" Style="{StaticResource Title}" />
                             <TextBlock Style="{StaticResource Subtitle}" Text="Состояние сервисов и быстрый запуск" />
+
+                            <Border x:Name="UpdateBanner" Style="{StaticResource Card}" Margin="0,18,0,0"
+                                    Visibility="Collapsed">
+                                <DockPanel>
+                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center"
+                                                Margin="16,0,0,0">
+                                        <Button Style="{StaticResource AccentButton}" Content="Обновить"
+                                                Click="UpdateBanner_Click" />
+                                        <Button Style="{StaticResource SubtleButton}" Content="Позже" Margin="8,0,0,0"
+                                                Click="DismissUpdateBanner_Click" />
+                                    </StackPanel>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock x:Name="TxtUpdateTitle" Style="{StaticResource CardTitle}"
+                                                   Text="Доступно обновление" />
+                                        <TextBlock x:Name="TxtUpdateDetail" Style="{StaticResource Caption}"
+                                                   Margin="0,4,0,0" Text="" />
+                                    </StackPanel>
+                                </DockPanel>
+                            </Border>
 
                             <Grid Margin="0,18,0,0">
                                 <Grid.ColumnDefinitions>
@@ -256,7 +251,11 @@
                                 <StackPanel>
                                     <TextBlock Text="Быстрые действия" Style="{StaticResource CardTitle}" />
                                     <WrapPanel Margin="0,12,0,0">
-                                        <Button x:Name="BtnUpdate" Style="{StaticResource AccentButton}" Content="Проверить обновление" Margin="0,0,8,8" Click="CheckUpdate_Click" />
+                                        <Button Style="{StaticResource AccentButton}" Content="Настроить всё"
+                                                Margin="0,0,8,8" Click="SetupEverything_Click"
+                                                AutomationProperties.Name="Настроить всё одной кнопкой" />
+                                        <Button x:Name="BtnUpdate" Style="{StaticResource SubtleButton}" Content="Проверить обновление" Margin="0,0,8,8" Click="CheckUpdate_Click" />
+                                        <Button Style="{StaticResource SubtleButton}" Content="Обзор программы" Margin="0,0,8,8" Click="ShowIntro_Click" />
                                         <Button Style="{StaticResource SubtleButton}" Content="Настроить OpenCode" Margin="0,0,8,8" Click="OpenWizard_Click" />
                                         <Button Style="{StaticResource SubtleButton}" Content="Проверить всё" Margin="0,0,8,8" Click="CheckAll_Click" />
                                         <Button Style="{StaticResource SubtleButton}" Content="Журнал событий" Margin="0,0,8,8" Click="OpenJournal_Click" />
@@ -551,8 +550,6 @@
                                         <Button Style="{StaticResource AccentButton}" Content="Установить все"
                                                 Margin="0,0,8,8" Click="InstallAllSkills_Click"
                                                 AutomationProperties.Name="Установить все скиллы" />
-                                        <Button Style="{StaticResource SubtleButton}" Content="Установить выбранные"
-                                                Margin="0,0,8,8" Click="InstallSelectedSkills_Click" />
                                         <Button Style="{StaticResource SubtleButton}" Content="Открыть папку"
                                                 Margin="0,0,8,8" Click="OpenSkillsFolder_Click" />
                                     </WrapPanel>
@@ -566,16 +563,17 @@
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Grid.Column="0" Text="Набор" Style="{StaticResource CardTitle}"
-                                                   VerticalAlignment="Center" />
-                                        <TextBox x:Name="TxtSkillSearch" Grid.Column="1" Width="240"
+                                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                            <TextBlock Text="Каталог по назначению" Style="{StaticResource CardTitle}" />
+                                            <TextBlock Style="{StaticResource Caption}" Margin="0,4,12,0" TextWrapping="Wrap"
+                                                       Text="Скиллы сгруппированы по задачам. У каждого есть описание и своя кнопка установки." />
+                                        </StackPanel>
+                                        <TextBox x:Name="TxtSkillSearch" Grid.Column="1" Width="230"
                                                  Style="{StaticResource Field}" TextChanged="SkillSearch_Changed"
                                                  AutomationProperties.Name="Поиск по скиллам" />
                                     </Grid>
-                                    <TextBlock Style="{StaticResource Caption}" Margin="0,8,0,0" TextWrapping="Wrap"
-                                               Text="Нажмите на название, чтобы выбрать набор. Точка после названия значит, что скилл уже установлен." />
-                                    <ScrollViewer MaxHeight="330" VerticalScrollBarVisibility="Auto" Margin="0,12,0,0">
-                                        <WrapPanel x:Name="SkillsList" />
+                                    <ScrollViewer MaxHeight="560" VerticalScrollBarVisibility="Auto" Margin="0,16,0,0">
+                                        <StackPanel x:Name="SkillsGroups" />
                                     </ScrollViewer>
                                     <TextBlock x:Name="TxtSkillsHint" Style="{StaticResource Caption}" Margin="0,10,0,0"
                                                Text="" TextWrapping="Wrap" />
@@ -633,6 +631,27 @@
                                         <StackPanel>
                                             <TextBlock Text="Запускать свёрнутым в трей" Style="{StaticResource CardTitle}" />
                                             <TextBlock Style="{StaticResource Caption}" Text="Окно не появится — сразу заработает только значок у часов" />
+                                        </StackPanel>
+                                    </DockPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource Card}" Margin="0,12,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="Модель по умолчанию" Style="{StaticResource CardTitle}" />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,8,0,0"
+                                               Text="TokenHub запишет её в opencode.json. Список — модели, которые отдаёт Token Harbor." />
+                                    <ComboBox x:Name="CmbModel" Style="{StaticResource Picker}" Margin="0,12,0,0"
+                                              SelectionChanged="Model_Changed"
+                                              AutomationProperties.Name="Модель по умолчанию" />
+                                    <DockPanel Margin="0,16,0,0">
+                                        <ToggleButton x:Name="TglFreeOnly" Style="{StaticResource Switch}" DockPanel.Dock="Right"
+                                                      VerticalAlignment="Center"
+                                                      Checked="FreeOnly_Changed" Unchecked="FreeOnly_Changed" />
+                                        <StackPanel>
+                                            <TextBlock Text="Только бесплатные модели" Style="{StaticResource CardTitle}" />
+                                            <TextBlock Style="{StaticResource Caption}"
+                                                       Text="Прокси не пропустит платную модель, даже если её запросит OpenCode." />
                                         </StackPanel>
                                     </DockPanel>
                                 </StackPanel>

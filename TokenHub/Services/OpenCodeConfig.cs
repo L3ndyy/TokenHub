@@ -73,12 +73,12 @@ public static class OpenCodeConfig
     }
 
     /// <summary>Writes both the address and the API key OpenCode should use.</summary>
-    public static string? SetProvider(string baseUrl, string? apiKey)
+    public static string? SetProvider(string baseUrl, string? apiKey, string? model = null)
     {
         var node = LoadNode(FilePath);
         if (node?["provider"]?["tokenharbor"]?["options"] is not JsonObject options)
         {
-            return EnsureProvider(baseUrl, apiKey);
+            return EnsureProvider(baseUrl, apiKey, null, model);
         }
 
         var backup = Backup();
@@ -86,6 +86,11 @@ public static class OpenCodeConfig
         if (!string.IsNullOrWhiteSpace(apiKey))
         {
             options["apiKey"] = apiKey;
+        }
+
+        if (!string.IsNullOrWhiteSpace(model))
+        {
+            node!["model"] = model;
         }
 
         File.WriteAllText(FilePath, node!.ToJsonString(WriteOptions));
@@ -97,7 +102,7 @@ public static class OpenCodeConfig
     /// untouched. Used by the first-run wizard, where the folder may not exist yet.
     /// Returns the backup path when an existing config was backed up.
     /// </summary>
-    public static string? EnsureProvider(string baseUrl, string? apiKey, string? path = null)
+    public static string? EnsureProvider(string baseUrl, string? apiKey, string? path = null, string? model = null)
     {
         string target = path ?? FilePath;
         string? backup = null;
@@ -151,7 +156,14 @@ public static class OpenCodeConfig
             tokenHarbor["models"] = DefaultModels();
         }
 
-        node["model"] ??= DefaultModel;
+        if (string.IsNullOrWhiteSpace(model))
+        {
+            node["model"] ??= DefaultModel;
+        }
+        else
+        {
+            node["model"] = model;
+        }
 
         File.WriteAllText(target, node.ToJsonString(WriteOptions));
         return backup;
@@ -163,6 +175,10 @@ public static class OpenCodeConfig
         ["deepseek-v4-flash:free"] = new JsonObject { ["name"] = "DeepSeek V4 Flash (free)" },
         ["deepseek-v4.1-flash"] = new JsonObject { ["name"] = "DeepSeek V4.1 Flash (paid)" },
     };
+
+    /// <summary>Model ids the provider block advertises, without the provider prefix.</summary>
+    public static IReadOnlyList<string> KnownModels() =>
+        DefaultModels().Select(pair => pair.Key).ToList();
 
     public static string Backup()
     {

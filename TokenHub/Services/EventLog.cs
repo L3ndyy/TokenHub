@@ -12,7 +12,20 @@ internal static class EventLog
 
     private static readonly object Gate = new();
 
-    public static string FilePath => Path.Combine(SettingsStore.Directory, "events.log");
+    private static string _folder = string.Empty;
+
+    /// <summary>Points the log at another folder; the tests use a temp one.</summary>
+    public static void Configure(string folder)
+    {
+        if (!string.IsNullOrEmpty(folder))
+        {
+            _folder = folder;
+        }
+    }
+
+    public static string FilePath => Path.Combine(
+        string.IsNullOrEmpty(_folder) ? SettingsStore.Directory : _folder,
+        "events.log");
 
     public static void Write(string message)
     {
