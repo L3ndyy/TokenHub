@@ -135,34 +135,37 @@ public partial class MainWindow : Window
     /// </summary>
     private void OpenWizardIfNeeded()
     {
-        if (App.Settings.FirstRunDone || App.StartMinimized || App.Settings.StartMinimized)
+        if (App.StartMinimized || App.Settings.StartMinimized)
         {
             return;
         }
 
-        if (!OpenCodeConfig.NeedsSetup)
+        bool needsSetup = !App.Settings.FirstRunDone && OpenCodeConfig.NeedsSetup;
+
+        // The tour is shown once to everyone, even when OpenCode is already configured;
+        // the wizard only follows when there is actually something to configure.
+        if (App.Settings.IntroSeen && !needsSetup)
         {
             return;
         }
 
         Dispatcher.BeginInvoke(new Action(() =>
         {
-            // A one-screen tour first: what the app does, then the wizard. Both are
-            // skippable, and the dashboard buttons bring either one back.
+            bool goFurther = true;
+
             if (!App.Settings.IntroSeen)
             {
                 var intro = new IntroWindow { Owner = this };
                 intro.ShowDialog();
                 App.Settings.IntroSeen = true;
                 SettingsStore.Save(App.Settings);
-
-                if (!intro.GoFurther)
-                {
-                    return;
-                }
+                goFurther = intro.GoFurther;
             }
 
-            OpenWizard();
+            if (needsSetup && goFurther)
+            {
+                OpenWizard();
+            }
         }));
     }
 
