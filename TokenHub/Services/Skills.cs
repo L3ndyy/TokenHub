@@ -274,7 +274,14 @@ public static class Skills
                 if (line.StartsWith("description:", StringComparison.OrdinalIgnoreCase))
                 {
                     string text = line["description:".Length..].Trim().Trim('"', '\'');
-                    return text.Length > 160 ? text[..157] + "..." : text;
+                    const int limit = 320;
+                    if (text.Length > limit)
+                    {
+                        int cut = text.LastIndexOf(' ', limit);
+                        text = (cut > 0 ? text[..cut] : text[..limit]).TrimEnd() + "…";
+                    }
+
+                    return text;
                 }
             }
         }

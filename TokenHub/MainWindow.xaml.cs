@@ -1,6 +1,7 @@
 ﻿using System.IO;
 using System.Text.Json;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
@@ -27,6 +28,7 @@ public partial class MainWindow : Window
 
     private bool _loading = true;
     private bool _exiting;
+    private bool _trayHintShown;
     private string? _dragKeyId;
     private Point _dragStart;
     private string _lastEvent = string.Empty;
@@ -35,6 +37,9 @@ public partial class MainWindow : Window
     private long _serviceRequests;
     private readonly Dictionary<string, (int Requests, int Failures, long AvgMs)> _serviceKeyStats = new();
     private int _skillsShown;
+    private readonly HashSet<string> _openSkillGroups = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _openSkills = new(StringComparer.Ordinal);
+    private static readonly FontFamily GlyphFont = new("Segoe Fluent Icons, Segoe MDL2 Assets");
     private string _serviceHealth = string.Empty;
     private UpdateInfo? _pendingUpdate;
 
@@ -1078,6 +1083,15 @@ public partial class MainWindow : Window
     {
         Hide();
 
+        // Only the first trip to the tray says anything — the balloon on every close/minimize
+        // gets in the way once the user knows where the window went.
+        if (_trayHintShown)
+        {
+            return;
+        }
+
+        _trayHintShown = true;
+
         bool pool = LocalProxy.Instance.Running || PoolService.Current == PoolService.State.Running;
         Tray.Notify(
             new WindowInteropHelper(this).Handle,
@@ -1133,7 +1147,9 @@ public partial class MainWindow : Window
         switch ((string)((Button)sender).Tag)
         {
             case "min":
-                WindowState = WindowState.Minimized;
+                // The window is a background tool: "свернуть" tucks it into the tray, so the
+                // key pool keeps running without a taskbar button in the way.
+                HideToTray();
                 break;
             case "max":
                 WindowState = WindowState == WindowState.Maximized
@@ -2540,8 +2556,9 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Draws the shipped skill collection grouped by purpose: a short description and a
-    /// one-click install for every skill, instead of a wall of 158 chips.
+    /// Draws the shipped skill collection grouped by purpose. The buckets start closed so the
+    /// page is not a wall of 158 rows; opening one then opening a name reveals its description
+    /// and install button. A search bypasses the folding and shows what it found.
     /// </summary>
     private void RenderSkills()
     {
@@ -2572,25 +2589,8 @@ public partial class MainWindow : Window
                 continue;
             }
 
-            var section = new StackPanel { Margin = new Thickness(0, 0, 0, 20) };
-            section.Children.Add(new TextBlock
-            {
-                Text = $"{group.Name} · {items.Count}",
-                Style = (Style)FindResource("CardTitle"),
-            });
-            section.Children.Add(new TextBlock
-            {
-                Text = group.Description,
-                Style = (Style)FindResource("Caption"),
-                Margin = new Thickness(0, 4, 0, 0),
-            });
-
-            foreach (var skill in items)
-            {
-                section.Children.Add(SkillRow(skill));
-            }
-
-            SkillsGroups.Children.Add(section);
+            bool open = filter.Length > 0 || _openSkillGroups.Contains(group.Name);
+            SkillsGroups.Children.Add(SkillGroupSection(group, items, open));
         }
 
         if (_skillsShown == 0)
@@ -2606,63 +2606,234 @@ public partial class MainWindow : Window
         UpdateSkillsHint();
     }
 
-    /// <summary>One skill: name, its own description, and an install button or a quiet "done".</summary>
-    private FrameworkElement SkillRow(SkillInfo skill)
+    /// <summary>Shows or hides a secondary row of actions so the cards stay calm.</summary>
+    private void ToggleMore_Click(object sender, RoutedEventArgs e)
     {
-        var row = new DockPanel { LastChildFill = true, Margin = new Thickness(0, 12, 0, 0) };
-
-        if (Skills.IsInstalled(skill.Name))
+        if (sender is not Button button || button.Tag is not string tag || FindName(tag) is not Panel panel)
         {
-            var done = new TextBlock
+            return;
+        }
+
+        bool open = panel.Visibility != Visibility.Visible;
+        panel.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+
+        if (FindName("Txt" + tag) is TextBlock label)
+        {
+            label.Text = open ? "Свернуть" : "Ещё";
+        }
+
+        if (FindName("Ico" + tag) is TextBlock icon)
+        {
+            icon.Text = open ? "\uE70E" : "\uE70D";
+        }
+
+        AutomationProperties.SetName(
+            button, open ? "Свернуть дополнительные действия" : "Показать остальные действия");
+    }
+
+    /// <summary>One collapsible bucket of skills, folded by default.</summary>
+    private FrameworkElement SkillGroupSection(SkillGroup group, List<SkillInfo> items, bool expanded)
+    {
+        var host = new StackPanel { Margin = new Thickness(0, 0, 0, 8) };
+
+        var body = new StackPanel
+        {
+            Margin = new Thickness(12, 2, 0, 8),
+            Visibility = expanded ? Visibility.Visible : Visibility.Collapsed,
+        };
+
+        foreach (var skill in items)
+        {
+            body.Children.Add(SkillRow(skill));
+        }
+
+        var title = new StackPanel();
+        title.Children.Add(new TextBlock
+        {
+            Text = $"{group.Name} · {items.Count}",
+            Style = (Style)FindResource("CardTitle"),
+        });
+        title.Children.Add(new TextBlock
+        {
+            Text = group.Description,
+            Style = (Style)FindResource("Caption"),
+            Margin = new Thickness(0, 4, 8, 0),
+        });
+
+        var trailing = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+
+        if (items.All(skill => Skills.IsInstalled(skill.Name)))
+        {
+            trailing.Children.Add(new TextBlock
             {
-                Text = "Установлено",
-                Style = (Style)FindResource("Caption"),
+                Text = "\uE73E",
+                FontFamily = GlyphFont,
+                FontSize = 12,
                 Foreground = (Brush)FindResource("Br.Success"),
                 VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(12, 0, 0, 0),
-            };
-            DockPanel.SetDock(done, Dock.Right);
-            row.Children.Add(done);
+                Margin = new Thickness(0, 0, 8, 0),
+            });
+        }
+
+        var chevron = NewChevron();
+        trailing.Children.Add(chevron);
+
+        var header = new Button
+        {
+            Style = (Style)FindResource("Disclosure"),
+            Content = DisclosureContent(title, trailing),
+        };
+        AutomationProperties.SetName(header, $"{group.Name} ({items.Count})");
+
+        WireDisclosure(header, chevron, body, expanded, open =>
+        {
+            if (open)
+            {
+                _openSkillGroups.Add(group.Name);
+            }
+            else
+            {
+                _openSkillGroups.Remove(group.Name);
+            }
+        });
+
+        host.Children.Add(header);
+        host.Children.Add(body);
+        return host;
+    }
+
+    /// <summary>One skill: its name, folded; a click reveals the description and install button.</summary>
+    private FrameworkElement SkillRow(SkillInfo skill)
+    {
+        bool installed = Skills.IsInstalled(skill.Name);
+        bool expanded = _openSkills.Contains(skill.Name);
+
+        var body = new StackPanel
+        {
+            Margin = new Thickness(30, 2, 12, 10),
+            Visibility = expanded ? Visibility.Visible : Visibility.Collapsed,
+        };
+
+        if (!string.IsNullOrWhiteSpace(skill.Description))
+        {
+            body.Children.Add(new TextBlock
+            {
+                Text = skill.Description,
+                Style = (Style)FindResource("Caption"),
+                TextWrapping = TextWrapping.Wrap,
+                MaxWidth = 620,
+            });
+        }
+
+        if (installed)
+        {
+            body.Children.Add(new TextBlock
+            {
+                Text = "Уже установлено",
+                Style = (Style)FindResource("Caption"),
+                Foreground = (Brush)FindResource("Br.Success"),
+                Margin = new Thickness(0, 8, 0, 0),
+            });
         }
         else
         {
             var install = new Button
             {
-                Content = "Установить",
+                Content = "Скачать и установить",
                 Style = (Style)FindResource("SubtleButton"),
-                Padding = new Thickness(12, 5, 12, 5),
+                Padding = new Thickness(14, 7, 14, 7),
                 FontSize = 12,
-                MinWidth = 108,
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(12, 0, 0, 0),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Margin = new Thickness(0, 10, 0, 0),
             };
             install.Click += (_, _) => InstallSkills(new[] { skill.Name }, skill.Name);
-            DockPanel.SetDock(install, Dock.Right);
-            row.Children.Add(install);
+            body.Children.Add(install);
         }
 
-        var text = new StackPanel();
-        text.Children.Add(new TextBlock
+        var label = new StackPanel();
+        label.Children.Add(new TextBlock
         {
             Text = skill.Name,
             FontWeight = FontWeights.SemiBold,
             Foreground = (Brush)FindResource("Br.Text"),
         });
 
-        if (!string.IsNullOrWhiteSpace(skill.Description))
+        // A quiet dot marks "already installed" without opening the row.
+        var trailing = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+
+        if (installed)
         {
-            text.Children.Add(new TextBlock
+            trailing.Children.Add(new TextBlock
             {
-                Text = skill.Description,
-                Style = (Style)FindResource("Caption"),
-                TextWrapping = TextWrapping.Wrap,
-                Margin = new Thickness(0, 3, 8, 0),
-                MaxWidth = 620,
+                Text = "\uE73E",
+                FontFamily = GlyphFont,
+                FontSize = 11,
+                Foreground = (Brush)FindResource("Br.Success"),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 8, 0),
             });
         }
 
-        row.Children.Add(text);
+        var chevron = NewChevron();
+        trailing.Children.Add(chevron);
+
+        var header = new Button
+        {
+            Style = (Style)FindResource("DisclosureRow"),
+            Content = DisclosureContent(label, trailing),
+        };
+        AutomationProperties.SetName(header, skill.Name);
+
+        WireDisclosure(header, chevron, body, expanded, open =>
+        {
+            if (open)
+            {
+                _openSkills.Add(skill.Name);
+            }
+            else
+            {
+                _openSkills.Remove(skill.Name);
+            }
+        });
+
+        var host = new StackPanel();
+        host.Children.Add(header);
+        host.Children.Add(body);
+        return host;
+    }
+
+    private static TextBlock NewChevron() => new()
+    {
+        Text = "\uE70D",
+        FontFamily = GlyphFont,
+        FontSize = 10,
+        Foreground = (Brush)Application.Current.Resources["Br.TextSecondary"],
+        VerticalAlignment = VerticalAlignment.Center,
+        Margin = new Thickness(4, 1, 0, 0),
+    };
+
+    /// <summary>Header row: the label stretching across, with a trailing glyph docked right.</summary>
+    private static DockPanel DisclosureContent(FrameworkElement label, FrameworkElement trailing)
+    {
+        var row = new DockPanel { LastChildFill = true };
+        DockPanel.SetDock(trailing, Dock.Right);
+        row.Children.Add(trailing);
+        row.Children.Add(label);
         return row;
+    }
+
+    /// <summary>Folds a body away behind a header and remembers the choice.</summary>
+    private static void WireDisclosure(
+        Button header, TextBlock chevron, FrameworkElement body, bool open, Action<bool> remember)
+    {
+        chevron.Text = open ? "\uE70E" : "\uE70D";
+        header.Click += (_, _) =>
+        {
+            open = !open;
+            body.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+            chevron.Text = open ? "\uE70E" : "\uE70D";
+            remember(open);
+        };
     }
 
     private void RefreshSkillsState()
@@ -2687,7 +2858,7 @@ public partial class MainWindow : Window
 
         TxtSkillsHint.Text = Skills.Catalog.Count == 0
             ? string.Empty
-            : $"Показано: {_skillsShown} из {Skills.Catalog.Count}. Установлено: {Skills.InstalledCount}.";
+            : $"Показано: {_skillsShown} из {Skills.Catalog.Count}. Установлено: {Skills.InstalledCount}. Каталог лежит в {Skills.Folder}";
     }
 
     private void SkillSearch_Changed(object sender, TextChangedEventArgs e)

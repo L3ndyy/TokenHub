@@ -52,6 +52,9 @@ internal static class Theme
             ["Br.Success"] = dark ? "#FF6CCB5F" : "#FF0F7B0F",
             ["Br.Danger"] = dark ? "#FFFF99A4" : "#FFC42B1C",
             ["Br.Muted"] = dark ? "#8AFFFFFF" : "#8F000000",
+            ["Br.ScrollTrack"] = "#00000000",
+            ["Br.ScrollThumb"] = dark ? "#33FFFFFF" : "#33000000",
+            ["Br.ScrollThumbHover"] = dark ? "#66FFFFFF" : "#55000000",
         };
 
         foreach (var (key, hex) in palette)

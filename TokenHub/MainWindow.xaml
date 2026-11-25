@@ -77,9 +77,16 @@
             <!-- ================= title bar ================= -->
             <Grid Grid.Row="0">
                 <StackPanel Orientation="Horizontal" Margin="16,0,0,0" VerticalAlignment="Center">
-                    <Border Width="20" Height="20" CornerRadius="6" Background="{DynamicResource Br.Accent}">
-                        <TextBlock Text="&#xE945;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10"
-                                   Foreground="{DynamicResource Br.OnAccent}"
+                    <!-- the same monogram as the app icon, drawn vector so it stays sharp at 22 px -->
+                    <Border Width="22" Height="22" CornerRadius="5" VerticalAlignment="Center"
+                            BorderBrush="#1E141E46" BorderThickness="1">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
+                                <GradientStop Color="#FFFFFFFF" Offset="0" />
+                                <GradientStop Color="#FFE9EEFF" Offset="1" />
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <TextBlock Text="TH" FontSize="10" FontWeight="Bold" Foreground="#FF3858F5"
                                    HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
                     <TextBlock Text="TokenHub" Margin="10,0,0,0" FontSize="12" FontWeight="SemiBold"
@@ -89,11 +96,14 @@
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top"
                             WindowChrome.IsHitTestVisibleInChrome="True">
                     <Button x:Name="BtnMin" Style="{StaticResource CaptionButton}" Content="&#xE921;"
-                            Click="Caption_Click" Tag="min" />
+                            Click="Caption_Click" Tag="min" ToolTip="Свернуть в трей"
+                            AutomationProperties.Name="Свернуть окно в трей" />
                     <Button x:Name="BtnMax" Style="{StaticResource CaptionButton}" Content="&#xE922;"
-                            Click="Caption_Click" Tag="max" />
+                            Click="Caption_Click" Tag="max" ToolTip="Развернуть"
+                            AutomationProperties.Name="Развернуть окно" />
                     <Button x:Name="BtnClose" Style="{StaticResource CloseButton}" Content="&#xE8BB;"
-                            Click="Caption_Click" Tag="close" />
+                            Click="Caption_Click" Tag="close" ToolTip="Закрыть в трей"
+                            AutomationProperties.Name="Закрыть окно" />
                 </StackPanel>
             </Grid>
 
@@ -247,18 +257,32 @@
                                 </StackPanel>
                             </Border>
 
-                            <Border Style="{StaticResource Card}" Margin="0,12,0,0">
+                            <Border Style="{StaticResource Card}" Margin="0,16,0,0">
                                 <StackPanel>
                                     <TextBlock Text="Быстрые действия" Style="{StaticResource CardTitle}" />
-                                    <WrapPanel Margin="0,12,0,0">
+                                    <WrapPanel Margin="0,14,0,0">
                                         <Button Style="{StaticResource AccentButton}" Content="Настроить всё"
                                                 Margin="0,0,8,8" Click="SetupEverything_Click"
                                                 AutomationProperties.Name="Настроить всё одной кнопкой" />
+                                        <Button Style="{StaticResource SubtleButton}" Content="Проверить всё"
+                                                Margin="0,0,8,8" Click="CheckAll_Click" />
+                                        <Button Style="{StaticResource SubtleButton}" Content="Журнал событий"
+                                                Margin="0,0,8,8" Click="OpenJournal_Click" />
+                                        <Button x:Name="BtnMoreHome" Style="{StaticResource SubtleButton}"
+                                                Margin="0,0,8,8" Click="ToggleMore_Click" Tag="MoreHome"
+                                                AutomationProperties.Name="Показать остальные действия">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock x:Name="TxtMoreHome" Text="Ещё" VerticalAlignment="Center" />
+                                                <TextBlock x:Name="IcoMoreHome" Text="&#xE70D;" VerticalAlignment="Center"
+                                                           FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="9"
+                                                           Margin="8,1,0,0" />
+                                            </StackPanel>
+                                        </Button>
+                                    </WrapPanel>
+                                    <WrapPanel x:Name="MoreHome" Visibility="Collapsed" Margin="0,4,0,0">
                                         <Button x:Name="BtnUpdate" Style="{StaticResource SubtleButton}" Content="Проверить обновление" Margin="0,0,8,8" Click="CheckUpdate_Click" />
                                         <Button Style="{StaticResource SubtleButton}" Content="Обзор программы" Margin="0,0,8,8" Click="ShowIntro_Click" />
                                         <Button Style="{StaticResource SubtleButton}" Content="Настроить OpenCode" Margin="0,0,8,8" Click="OpenWizard_Click" />
-                                        <Button Style="{StaticResource SubtleButton}" Content="Проверить всё" Margin="0,0,8,8" Click="CheckAll_Click" />
-                                        <Button Style="{StaticResource SubtleButton}" Content="Журнал событий" Margin="0,0,8,8" Click="OpenJournal_Click" />
                                         <Button Style="{StaticResource SubtleButton}" Content="Диагностика" Margin="0,0,8,8" Click="ExportDiagnostics_Click" />
                                         <Button Style="{StaticResource SubtleButton}" Content="Открыть конфиг OpenCode" Margin="0,0,8,8" Click="OpenConfig_Click" />
                                         <Button Style="{StaticResource SubtleButton}" Content="Папка TokenHub" Margin="0,0,8,8" Click="OpenHubFolder_Click" />
@@ -419,10 +443,21 @@
                                     </DockPanel>
                                     <TextBlock x:Name="TxtPoolState" Style="{StaticResource Body}" Margin="0,8,0,0" Text="Проверка..." />
                                     <TextBlock x:Name="TxtPoolHint" Style="{StaticResource Caption}" Margin="0,6,0,0" Text="" />
-                                    <WrapPanel Margin="0,12,0,0">
+                                    <WrapPanel Margin="0,14,0,0">
                                         <Button Style="{StaticResource AccentButton}" Content="Применить в OpenCode" Margin="0,0,8,8" Click="ApplyPool_Click" />
                                         <Button Style="{StaticResource SubtleButton}" Content="Применить и перезапустить" Margin="0,0,8,8" Click="ApplyPoolRestart_Click" />
                                         <Button Style="{StaticResource SubtleButton}" Content="Проверить все ключи" Margin="0,0,8,8" Click="CheckAllKeys_Click" />
+                                        <Button Style="{StaticResource SubtleButton}" Margin="0,0,8,8" Click="ToggleMore_Click" Tag="MorePool"
+                                                AutomationProperties.Name="Показать остальные действия пула">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock x:Name="TxtMorePool" Text="Ещё" VerticalAlignment="Center" />
+                                                <TextBlock x:Name="IcoMorePool" Text="&#xE70D;" VerticalAlignment="Center"
+                                                           FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="9"
+                                                           Margin="8,1,0,0" />
+                                            </StackPanel>
+                                        </Button>
+                                    </WrapPanel>
+                                    <WrapPanel x:Name="MorePool" Visibility="Collapsed" Margin="0,4,0,0">
                                         <Button Style="{StaticResource SubtleButton}" Content="Копировать адрес" Margin="0,0,8,8" Click="CopyPoolUrl_Click" />
                                         <Button Style="{StaticResource SubtleButton}" Content="Сбросить паузы и ошибки" Margin="0,0,8,8" Click="ResetPool_Click" />
                                         <Button Style="{StaticResource SubtleButton}" Content="Экспорт ключей" Margin="0,0,8,8" Click="ExportKeys_Click" />
@@ -524,13 +559,24 @@
                                     <TextBlock x:Name="TxtServiceState" Style="{StaticResource Body}" Margin="0,8,0,0" Text="Проверка..." />
                                     <TextBlock x:Name="TxtServiceHint" Style="{StaticResource Caption}" Margin="0,6,0,0"
                                                Text="Служба держит пул ключей запущенным, даже когда окно TokenHub закрыто. Установка и управление требуют прав администратора — появится один запрос UAC." />
-                                    <WrapPanel Margin="0,12,0,0">
+                                    <WrapPanel Margin="0,14,0,0">
                                         <Button Style="{StaticResource AccentButton}" Content="Установить и запустить" Margin="0,0,8,8" Click="ServiceInstall_Click" />
+                                        <Button Style="{StaticResource SubtleButton}" Content="Обновить" Margin="0,0,8,8" Click="ServiceRefresh_Click" />
+                                        <Button Style="{StaticResource SubtleButton}" Margin="0,0,8,8" Click="ToggleMore_Click" Tag="MoreService"
+                                                AutomationProperties.Name="Показать остальные действия службы">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock x:Name="TxtMoreService" Text="Ещё" VerticalAlignment="Center" />
+                                                <TextBlock x:Name="IcoMoreService" Text="&#xE70D;" VerticalAlignment="Center"
+                                                           FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="9"
+                                                           Margin="8,1,0,0" />
+                                            </StackPanel>
+                                        </Button>
+                                    </WrapPanel>
+                                    <WrapPanel x:Name="MoreService" Visibility="Collapsed" Margin="0,4,0,0">
                                         <Button Style="{StaticResource SubtleButton}" Content="Запустить" Margin="0,0,8,8" Click="ServiceStart_Click" />
                                         <Button Style="{StaticResource SubtleButton}" Content="Остановить" Margin="0,0,8,8" Click="ServiceStop_Click" />
-                                        <Button Style="{StaticResource SubtleButton}" Content="Удалить" Margin="0,0,8,8" Click="ServiceUninstall_Click" />
-                                        <Button Style="{StaticResource SubtleButton}" Content="Обновить" Margin="0,0,8,8" Click="ServiceRefresh_Click" />
                                         <Button Style="{StaticResource SubtleButton}" Content="Обновить файлы службы" Margin="0,0,8,8" Click="ServiceUpdate_Click" />
+                                        <Button Style="{StaticResource SubtleButton}" Content="Удалить" Margin="0,0,8,8" Click="ServiceUninstall_Click" />
                                     </WrapPanel>
                                 </StackPanel>
                             </Border>
@@ -566,16 +612,16 @@
                                         <StackPanel Grid.Column="0" VerticalAlignment="Center">
                                             <TextBlock Text="Каталог по назначению" Style="{StaticResource CardTitle}" />
                                             <TextBlock Style="{StaticResource Caption}" Margin="0,4,12,0" TextWrapping="Wrap"
-                                                       Text="Скиллы сгруппированы по задачам. У каждого есть описание и своя кнопка установки." />
+                                                       Text="Разделы свёрнуты, чтобы список не расплывался. Нажмите на раздел, а затем на название скилла — раскроются описание и кнопка установки." />
                                         </StackPanel>
                                         <TextBox x:Name="TxtSkillSearch" Grid.Column="1" Width="230"
                                                  Style="{StaticResource Field}" TextChanged="SkillSearch_Changed"
                                                  AutomationProperties.Name="Поиск по скиллам" />
                                     </Grid>
-                                    <ScrollViewer MaxHeight="560" VerticalScrollBarVisibility="Auto" Margin="0,16,0,0">
-                                        <StackPanel x:Name="SkillsGroups" />
+                                    <ScrollViewer MaxHeight="560" VerticalScrollBarVisibility="Auto" Margin="0,14,0,4">
+                                        <StackPanel x:Name="SkillsGroups" Margin="0,0,6,0" />
                                     </ScrollViewer>
-                                    <TextBlock x:Name="TxtSkillsHint" Style="{StaticResource Caption}" Margin="0,10,0,0"
+                                    <TextBlock x:Name="TxtSkillsHint" Style="{StaticResource Caption}" Margin="0,12,0,0"
                                                Text="" TextWrapping="Wrap" />
                                 </StackPanel>
                             </Border>

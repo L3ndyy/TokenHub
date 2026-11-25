@@ -4,7 +4,7 @@
 #
 # Usage:
 #   powershell -ExecutionPolicy Bypass -File installer\build-installer.ps1
-#   powershell -ExecutionPolicy Bypass -File installer\build-installer.ps1 -Version 1.1.0
+#   powershell -ExecutionPolicy Bypass -File installer\build-installer.ps1 -Version 1.1.1
 #
 # Uses IExpress, which ships with Windows; nothing has to be installed first.
 param(
