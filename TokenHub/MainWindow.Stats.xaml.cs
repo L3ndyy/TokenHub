@@ -93,6 +93,7 @@ public partial class MainWindow
 
     private void RefreshStats()
     {
+        RefreshNavBadges();
         var proxy = LocalProxy.Instance;
 
         // One number first: what the week would have cost on the paid equivalent of the

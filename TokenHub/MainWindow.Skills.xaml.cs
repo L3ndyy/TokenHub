@@ -234,31 +234,6 @@ public partial class MainWindow
         UpdateSkillsHint();
     }
 
-    /// <summary>Shows or hides a secondary row of actions so the cards stay calm.</summary>
-    private void ToggleMore_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is not Button button || button.Tag is not string tag || FindName(tag) is not Panel panel)
-        {
-            return;
-        }
-
-        bool open = panel.Visibility != Visibility.Visible;
-        panel.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
-
-        if (FindName("Txt" + tag) is TextBlock label)
-        {
-            label.Text = open ? "Свернуть" : "Ещё";
-        }
-
-        if (FindName("Ico" + tag) is TextBlock icon)
-        {
-            icon.Text = open ? "\uE70E" : "\uE70D";
-        }
-
-        AutomationProperties.SetName(
-            button, open ? "Свернуть дополнительные действия" : "Показать остальные действия");
-    }
-
     /// <summary>One collapsible bucket of skills, folded by default.</summary>
     private FrameworkElement SkillGroupSection(SkillGroup group, List<SkillInfo> items, bool expanded)
     {
@@ -529,6 +504,7 @@ public partial class MainWindow
             ? "В этой сборке нет набора скиллов."
             : $"Скиллов в наборе: {Skills.Catalog.Count} · уже установлено: {Skills.InstalledCount}";
         TxtSkillsPath.Text = Skills.Folder;
+        RefreshNavBadges();
     }
 
     private void UpdateSkillsHint()

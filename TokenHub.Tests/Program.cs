@@ -32,6 +32,7 @@ internal static class Program
         OpenCodeConfigTests();
         DpapiTests();
         SettingsRoundTripTests();
+        StatsPersistenceTests();
         LocalProxyTests();
 
         Console.WriteLine();
@@ -544,6 +545,50 @@ internal static class Program
     }
 
     // ---------------------------------------------------------------- local proxy (integration)
+
+    /// <summary>
+    /// The pool counters must outlive a restart: an app update used to bring the
+    /// dashboard back with "requests: 0", as if the pool had never worked.
+    /// </summary>
+    private static void StatsPersistenceTests()
+    {
+        Console.WriteLine("Счётчики пула");
+        string folder = Path.Combine(Path.GetTempPath(), "th-stats-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        var proxy = LocalProxy.Instance;
+
+        try
+        {
+            StatsStore.Configure(Path.Combine(folder, "settings.json"));
+            StatsStore.Save(new Dictionary<string, StatsStore.Entry>(StringComparer.Ordinal)
+            {
+                [StatsStore.TotalsKey] = new StatsStore.Entry { Requests = 41, Failures = 7 },
+                ["key-1"] = new StatsStore.Entry { Requests = 5, Failures = 1, TotalMs = 250 },
+            });
+
+            proxy.Configure(() => new AppSettings(), _ => { });
+            Check("запросы пула пережили перезапуск", proxy.Requests == 41, proxy.Requests);
+            Check("переключения пула пережили перезапуск", proxy.Failovers == 7, proxy.Failovers);
+            Check("покалючевые счётчики на месте", proxy.StatOf("key-1")?.Requests == 5, proxy.StatOf("key-1")?.Requests);
+
+            proxy.ResetStats();
+            Check("сброс обнуляет и память, и файл",
+                proxy.Requests == 0 && !File.Exists(StatsStore.FilePath),
+                $"{proxy.Requests}, файл={File.Exists(StatsStore.FilePath)}");
+        }
+        finally
+        {
+            proxy.ResetStats();
+            try
+            {
+                Directory.Delete(folder, recursive: true);
+            }
+            catch
+            {
+                // A leftover temp folder must not fail the suite.
+            }
+        }
+    }
 
     /// <summary>
     /// Starts the real proxy against a hand-written stub upstream and checks the things

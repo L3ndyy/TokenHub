@@ -85,7 +85,15 @@ public sealed class LocalProxy
     /// <summary>Restores per-key counters saved by a previous run.</summary>
     private void LoadStats()
     {
-        foreach (var (id, entry) in StatsStore.Load())
+        var saved = StatsStore.Load();
+        if (saved.TryGetValue(StatsStore.TotalsKey, out var totals))
+        {
+            Interlocked.Exchange(ref _requests, totals.Requests);
+            Interlocked.Exchange(ref _failovers, totals.Failures);
+            saved.Remove(StatsStore.TotalsKey);
+        }
+
+        foreach (var (id, entry) in saved)
         {
             _perKey[id] = new KeyStat
             {
@@ -102,6 +110,16 @@ public sealed class LocalProxy
     private void FlushStats()
     {
         var snapshot = new Dictionary<string, StatsStore.Entry>(StringComparer.Ordinal);
+
+        // The pool totals are written with the per-key numbers, otherwise an update would
+        // wipe them: they used to live only in memory and restart at zero every launch.
+        snapshot[StatsStore.TotalsKey] = new StatsStore.Entry
+        {
+            Requests = Requests,
+            Failures = Failovers,
+            LastUtc = DateTime.UtcNow,
+        };
+
         foreach (var (id, stat) in _perKey)
         {
             lock (stat)

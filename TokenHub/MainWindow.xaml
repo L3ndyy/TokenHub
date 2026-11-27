@@ -142,19 +142,37 @@
                     <RadioButton x:Name="NavKeys" GroupName="nav" Style="{StaticResource NavItem}"
                                  Tag="keys" Checked="Nav_Checked"
                                  AutomationProperties.Name="Ключи">
-                        <StackPanel Orientation="Horizontal">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
                             <TextBlock Text="&#xE72E;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14" VerticalAlignment="Center" />
-                            <TextBlock Text="Ключи" Margin="12,0,0,0" VerticalAlignment="Center" />
-                        </StackPanel>
+                            <TextBlock Grid.Column="1" Text="Ключи" Margin="12,0,8,0" VerticalAlignment="Center" />
+                            <Border x:Name="BadgeKeys" Grid.Column="2" Style="{StaticResource Badge}"
+                                    Visibility="Collapsed" ToolTip="Ключи, которые сейчас не работают">
+                                <TextBlock x:Name="BadgeKeysText" Style="{StaticResource BadgeText}" Text="0" />
+                            </Border>
+                        </Grid>
                     </RadioButton>
 
                     <RadioButton x:Name="NavSkills" GroupName="nav" Style="{StaticResource NavItem}"
                                  Tag="skills" Checked="Nav_Checked"
                                  AutomationProperties.Name="Скиллы">
-                        <StackPanel Orientation="Horizontal">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
                             <TextBlock Text="&#xE8F1;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14" VerticalAlignment="Center" />
-                            <TextBlock Text="Скиллы" Margin="12,0,0,0" VerticalAlignment="Center" />
-                        </StackPanel>
+                            <TextBlock Grid.Column="1" Text="Скиллы" Margin="12,0,8,0" VerticalAlignment="Center" />
+                            <Border x:Name="BadgeSkills" Grid.Column="2" Style="{StaticResource Badge}"
+                                    Visibility="Collapsed" ToolTip="Скиллы из набора, которые ещё не установлены">
+                                <TextBlock x:Name="BadgeSkillsText" Style="{StaticResource BadgeText}" Text="0" />
+                            </Border>
+                        </Grid>
                     </RadioButton>
 
                     <RadioButton x:Name="NavMemory" GroupName="nav" Style="{StaticResource NavItem}"
@@ -317,23 +335,55 @@
                                         <Button Style="{StaticResource SubtleButton}" Content="Журнал событий"
                                                 Margin="0,0,8,8" Click="OpenJournal_Click" />
                                         <Button x:Name="BtnMoreHome" Style="{StaticResource SubtleButton}"
-                                                Margin="0,0,8,8" Click="ToggleMore_Click" Tag="MoreHome"
-                                                AutomationProperties.Name="Показать остальные действия">
+                                                Margin="0,0,8,8" Click="MoreMenu_Click"
+                                                AutomationProperties.Name="Остальные действия">
                                             <StackPanel Orientation="Horizontal">
-                                                <TextBlock x:Name="TxtMoreHome" Text="Ещё" VerticalAlignment="Center" />
-                                                <TextBlock x:Name="IcoMoreHome" Text="&#xE70D;" VerticalAlignment="Center"
+                                                <TextBlock Text="Ещё" VerticalAlignment="Center" />
+                                                <TextBlock Text="&#xE70D;" VerticalAlignment="Center"
                                                            FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="9"
                                                            Margin="8,1,0,0" />
                                             </StackPanel>
+                                            <Button.ContextMenu>
+                                                <ContextMenu>
+                                                    <MenuItem x:Name="BtnUpdate" Header="Проверить обновление" Click="CheckUpdate_Click">
+                                                        <MenuItem.Icon>
+                                                            <TextBlock Text="&#xE72C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                                                       Foreground="{DynamicResource Br.TextSecondary}" />
+                                                        </MenuItem.Icon>
+                                                    </MenuItem>
+                                                    <MenuItem Header="Обзор программы" Click="ShowIntro_Click">
+                                                        <MenuItem.Icon>
+                                                            <TextBlock Text="&#xE946;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                                                       Foreground="{DynamicResource Br.TextSecondary}" />
+                                                        </MenuItem.Icon>
+                                                    </MenuItem>
+                                                    <MenuItem Header="Настроить OpenCode" Click="OpenWizard_Click">
+                                                        <MenuItem.Icon>
+                                                            <TextBlock Text="&#xE90F;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                                                       Foreground="{DynamicResource Br.TextSecondary}" />
+                                                        </MenuItem.Icon>
+                                                    </MenuItem>
+                                                    <MenuItem Header="Диагностика" Click="ExportDiagnostics_Click">
+                                                        <MenuItem.Icon>
+                                                            <TextBlock Text="&#xE9D9;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                                                       Foreground="{DynamicResource Br.TextSecondary}" />
+                                                        </MenuItem.Icon>
+                                                    </MenuItem>
+                                                    <MenuItem Header="Открыть конфиг OpenCode" Click="OpenConfig_Click">
+                                                        <MenuItem.Icon>
+                                                            <TextBlock Text="&#xE713;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                                                       Foreground="{DynamicResource Br.TextSecondary}" />
+                                                        </MenuItem.Icon>
+                                                    </MenuItem>
+                                                    <MenuItem Header="Папка TokenHub" Click="OpenHubFolder_Click">
+                                                        <MenuItem.Icon>
+                                                            <TextBlock Text="&#xE8B7;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                                                       Foreground="{DynamicResource Br.TextSecondary}" />
+                                                        </MenuItem.Icon>
+                                                    </MenuItem>
+                                                </ContextMenu>
+                                            </Button.ContextMenu>
                                         </Button>
-                                    </WrapPanel>
-                                    <WrapPanel x:Name="MoreHome" Visibility="Collapsed" Margin="0,4,0,0">
-                                        <Button x:Name="BtnUpdate" Style="{StaticResource SubtleButton}" Content="Проверить обновление" Margin="0,0,8,8" Click="CheckUpdate_Click" />
-                                        <Button Style="{StaticResource SubtleButton}" Content="Обзор программы" Margin="0,0,8,8" Click="ShowIntro_Click" />
-                                        <Button Style="{StaticResource SubtleButton}" Content="Настроить OpenCode" Margin="0,0,8,8" Click="OpenWizard_Click" />
-                                        <Button Style="{StaticResource SubtleButton}" Content="Диагностика" Margin="0,0,8,8" Click="ExportDiagnostics_Click" />
-                                        <Button Style="{StaticResource SubtleButton}" Content="Открыть конфиг OpenCode" Margin="0,0,8,8" Click="OpenConfig_Click" />
-                                        <Button Style="{StaticResource SubtleButton}" Content="Папка TokenHub" Margin="0,0,8,8" Click="OpenHubFolder_Click" />
                                     </WrapPanel>
                                 </StackPanel>
                             </Border>
@@ -495,21 +545,44 @@
                                         <Button Style="{StaticResource AccentButton}" Content="Применить в OpenCode" Margin="0,0,8,8" Click="ApplyPool_Click" />
                                         <Button Style="{StaticResource SubtleButton}" Content="Применить и перезапустить" Margin="0,0,8,8" Click="ApplyPoolRestart_Click" />
                                         <Button Style="{StaticResource SubtleButton}" Content="Проверить все ключи" Margin="0,0,8,8" Click="CheckAllKeys_Click" />
-                                        <Button Style="{StaticResource SubtleButton}" Margin="0,0,8,8" Click="ToggleMore_Click" Tag="MorePool"
-                                                AutomationProperties.Name="Показать остальные действия пула">
+                                        <Button x:Name="BtnMorePool" Style="{StaticResource SubtleButton}"
+                                                Margin="0,0,8,8" Click="MoreMenu_Click"
+                                                AutomationProperties.Name="Остальные действия пула">
                                             <StackPanel Orientation="Horizontal">
-                                                <TextBlock x:Name="TxtMorePool" Text="Ещё" VerticalAlignment="Center" />
-                                                <TextBlock x:Name="IcoMorePool" Text="&#xE70D;" VerticalAlignment="Center"
+                                                <TextBlock Text="Ещё" VerticalAlignment="Center" />
+                                                <TextBlock Text="&#xE70D;" VerticalAlignment="Center"
                                                            FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="9"
                                                            Margin="8,1,0,0" />
                                             </StackPanel>
+                                            <Button.ContextMenu>
+                                                <ContextMenu>
+                                                    <MenuItem Header="Копировать адрес" Click="CopyPoolUrl_Click">
+                                                        <MenuItem.Icon>
+                                                            <TextBlock Text="&#xE8C8;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                                                       Foreground="{DynamicResource Br.TextSecondary}" />
+                                                        </MenuItem.Icon>
+                                                    </MenuItem>
+                                                    <MenuItem Header="Сбросить паузы и ошибки" Click="ResetPool_Click">
+                                                        <MenuItem.Icon>
+                                                            <TextBlock Text="&#xE72C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                                                       Foreground="{DynamicResource Br.TextSecondary}" />
+                                                        </MenuItem.Icon>
+                                                    </MenuItem>
+                                                    <MenuItem Header="Экспорт ключей" Click="ExportKeys_Click">
+                                                        <MenuItem.Icon>
+                                                            <TextBlock Text="&#xE898;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                                                       Foreground="{DynamicResource Br.TextSecondary}" />
+                                                        </MenuItem.Icon>
+                                                    </MenuItem>
+                                                    <MenuItem Header="Импорт ключей" Click="ImportKeys_Click">
+                                                        <MenuItem.Icon>
+                                                            <TextBlock Text="&#xE896;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                                                       Foreground="{DynamicResource Br.TextSecondary}" />
+                                                        </MenuItem.Icon>
+                                                    </MenuItem>
+                                                </ContextMenu>
+                                            </Button.ContextMenu>
                                         </Button>
-                                    </WrapPanel>
-                                    <WrapPanel x:Name="MorePool" Visibility="Collapsed" Margin="0,4,0,0">
-                                        <Button Style="{StaticResource SubtleButton}" Content="Копировать адрес" Margin="0,0,8,8" Click="CopyPoolUrl_Click" />
-                                        <Button Style="{StaticResource SubtleButton}" Content="Сбросить паузы и ошибки" Margin="0,0,8,8" Click="ResetPool_Click" />
-                                        <Button Style="{StaticResource SubtleButton}" Content="Экспорт ключей" Margin="0,0,8,8" Click="ExportKeys_Click" />
-                                        <Button Style="{StaticResource SubtleButton}" Content="Импорт ключей" Margin="0,0,8,8" Click="ImportKeys_Click" />
                                     </WrapPanel>
                                 </StackPanel>
                             </Border>
@@ -615,21 +688,44 @@
                                     <WrapPanel Margin="0,14,0,0">
                                         <Button Style="{StaticResource AccentButton}" Content="Установить и запустить" Margin="0,0,8,8" Click="ServiceInstall_Click" />
                                         <Button Style="{StaticResource SubtleButton}" Content="Обновить" Margin="0,0,8,8" Click="ServiceRefresh_Click" />
-                                        <Button Style="{StaticResource SubtleButton}" Margin="0,0,8,8" Click="ToggleMore_Click" Tag="MoreService"
-                                                AutomationProperties.Name="Показать остальные действия службы">
+                                        <Button x:Name="BtnMoreService" Style="{StaticResource SubtleButton}"
+                                                Margin="0,0,8,8" Click="MoreMenu_Click"
+                                                AutomationProperties.Name="Остальные действия службы">
                                             <StackPanel Orientation="Horizontal">
-                                                <TextBlock x:Name="TxtMoreService" Text="Ещё" VerticalAlignment="Center" />
-                                                <TextBlock x:Name="IcoMoreService" Text="&#xE70D;" VerticalAlignment="Center"
+                                                <TextBlock Text="Ещё" VerticalAlignment="Center" />
+                                                <TextBlock Text="&#xE70D;" VerticalAlignment="Center"
                                                            FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="9"
                                                            Margin="8,1,0,0" />
                                             </StackPanel>
+                                            <Button.ContextMenu>
+                                                <ContextMenu>
+                                                    <MenuItem Header="Запустить" Click="ServiceStart_Click">
+                                                        <MenuItem.Icon>
+                                                            <TextBlock Text="&#xE768;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                                                       Foreground="{DynamicResource Br.TextSecondary}" />
+                                                        </MenuItem.Icon>
+                                                    </MenuItem>
+                                                    <MenuItem Header="Остановить" Click="ServiceStop_Click">
+                                                        <MenuItem.Icon>
+                                                            <TextBlock Text="&#xE71A;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                                                       Foreground="{DynamicResource Br.TextSecondary}" />
+                                                        </MenuItem.Icon>
+                                                    </MenuItem>
+                                                    <MenuItem Header="Обновить файлы службы" Click="ServiceUpdate_Click">
+                                                        <MenuItem.Icon>
+                                                            <TextBlock Text="&#xE896;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                                                       Foreground="{DynamicResource Br.TextSecondary}" />
+                                                        </MenuItem.Icon>
+                                                    </MenuItem>
+                                                    <MenuItem Header="Удалить" Click="ServiceUninstall_Click">
+                                                        <MenuItem.Icon>
+                                                            <TextBlock Text="&#xE74D;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                                                       Foreground="{DynamicResource Br.TextSecondary}" />
+                                                        </MenuItem.Icon>
+                                                    </MenuItem>
+                                                </ContextMenu>
+                                            </Button.ContextMenu>
                                         </Button>
-                                    </WrapPanel>
-                                    <WrapPanel x:Name="MoreService" Visibility="Collapsed" Margin="0,4,0,0">
-                                        <Button Style="{StaticResource SubtleButton}" Content="Запустить" Margin="0,0,8,8" Click="ServiceStart_Click" />
-                                        <Button Style="{StaticResource SubtleButton}" Content="Остановить" Margin="0,0,8,8" Click="ServiceStop_Click" />
-                                        <Button Style="{StaticResource SubtleButton}" Content="Обновить файлы службы" Margin="0,0,8,8" Click="ServiceUpdate_Click" />
-                                        <Button Style="{StaticResource SubtleButton}" Content="Удалить" Margin="0,0,8,8" Click="ServiceUninstall_Click" />
                                     </WrapPanel>
                                 </StackPanel>
                             </Border>

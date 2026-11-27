@@ -19,6 +19,12 @@ public partial class MainWindow : Window
     /// <summary>Drag payload format, so key order is never dragged out as plain text.</summary>
     private const string KeyIdFormat = "TokenHub.KeyId";
 
+    // Window messages and hit-test codes that make the custom maximize button behave like
+    // the system one: Windows 11 draws the snap-layouts flyout only for HTMAXBUTTON.
+    private const int WmNcHitTest = 0x0084;
+    private const int WmNcLButtonDown = 0x00A1;
+    private const int HtMaxButton = 9;
+
     private enum Kind
     {
         Unknown,
@@ -273,6 +279,21 @@ public partial class MainWindow : Window
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
+        if (msg == WmNcHitTest && OverCaptionButton(BtnMax, lParam))
+        {
+            handled = true;
+            return (IntPtr)HtMaxButton;
+        }
+
+        if (msg == WmNcLButtonDown && wParam == (IntPtr)HtMaxButton)
+        {
+            // The hit test above turns the press into a non-client click, so the button's
+            // own Click never fires; the toggle happens here instead.
+            handled = true;
+            Dispatcher.BeginInvoke(new Action(ToggleMaximize));
+            return IntPtr.Zero;
+        }
+
         if (Native.ShowMessage != 0 && msg == Native.ShowMessage)
         {
             // Another launch asked us to come to the front. Go through WPF's
@@ -434,15 +455,46 @@ public partial class MainWindow : Window
                 HideToTray();
                 break;
             case "max":
-                WindowState = WindowState == WindowState.Maximized
-                    ? WindowState.Normal
-                    : WindowState.Maximized;
-                BtnMax.Content = WindowState == WindowState.Maximized ? "\uE923" : "\uE922";
+                ToggleMaximize();
                 break;
             case "close":
                 Close();
                 break;
         }
+    }
+
+    private void ToggleMaximize()
+    {
+        WindowState = WindowState == WindowState.Maximized
+            ? WindowState.Normal
+            : WindowState.Maximized;
+        BtnMax.Content = WindowState == WindowState.Maximized ? "\uE923" : "\uE922";
+    }
+
+    /// <summary>True when a non-client hit test point lands on the given caption button.</summary>
+    private bool OverCaptionButton(Button button, IntPtr lParam)
+    {
+        // lParam carries screen pixels, WPF works in device-independent units.
+        long packed = lParam.ToInt64();
+        var screen = new Point(
+            unchecked((short)(packed & 0xFFFF)),
+            unchecked((short)((packed >> 16) & 0xFFFF)));
+        var corner = button.TranslatePoint(new Point(0, 0), this);
+        return new Rect(corner, new Size(button.ActualWidth, button.ActualHeight))
+            .Contains(PointFromScreen(screen));
+    }
+
+    /// <summary>Opens the "Ещё" dropdown as a real menu instead of an inline pile of buttons.</summary>
+    private void MoreMenu_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button || button.ContextMenu is not ContextMenu menu)
+        {
+            return;
+        }
+
+        menu.PlacementTarget = button;
+        menu.Placement = PlacementMode.Bottom;
+        menu.IsOpen = true;
     }
 
     private void Nav_Checked(object sender, RoutedEventArgs e)
@@ -526,6 +578,27 @@ public partial class MainWindow : Window
     }];
 
     private static void Dot(System.Windows.Shapes.Ellipse dot, Kind kind) => dot.Fill = Brush(kind);
+
+    /// <summary>
+    /// Rail badges: how many keys are not working and how many skills from the set are
+    /// still missing. Zero hides the badge, so the rail stays quiet when all is well.
+    /// </summary>
+    private void RefreshNavBadges()
+    {
+        int broken = App.Settings.Keys.Count(k => !k.Available);
+        SetBadge(BadgeKeys, BadgeKeysText, broken, $"Недоступных ключей: {broken}");
+
+        int missing = Math.Max(0, Skills.Catalog.Count - Skills.InstalledCount);
+        SetBadge(BadgeSkills, BadgeSkillsText, missing, $"Не установлено скиллов: {missing}");
+    }
+
+    private static void SetBadge(Border badge, TextBlock text, int count, string toolTip)
+    {
+        bool show = count > 0;
+        badge.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        text.Text = count.ToString();
+        badge.ToolTip = toolTip;
+    }
 
     private static void Copy(string text)
     {

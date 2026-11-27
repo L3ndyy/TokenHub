@@ -20,6 +20,12 @@ public static class StatsStore
         public DateTime? LastUtc { get; set; }
     }
 
+    /// <summary>
+    /// Reserved key for the whole-pool counters (requests, key switches). They live in the
+    /// same file as the per-key ones, so an app restart or an update does not reset them.
+    /// </summary>
+    public const string TotalsKey = "@pool";
+
     private static readonly object Gate = new();
     private static string _path = Path.Combine(SettingsStore.Directory, "stats.json");
 
