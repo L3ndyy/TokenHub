@@ -17,6 +17,13 @@ public static class Program
             return Services.MemoryMcp.Run();
         }
 
+        // Headless self-report, used by the CI smoke job and handy in a terminal.
+        if (Array.Exists(args, a => string.Equals(a, "--version", StringComparison.OrdinalIgnoreCase)))
+        {
+            Console.WriteLine(Services.Updater.CurrentVersion);
+            return 0;
+        }
+
         var app = new App();
         app.InitializeComponent();
         return app.Run();

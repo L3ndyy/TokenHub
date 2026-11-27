@@ -18,6 +18,8 @@ public partial class MainWindow
 
     // ---------------------------------------------------------------- Windows service
 
+    private bool _poolBannerDismissed;
+
     private void RefreshServiceState()
     {
         var state = PoolService.Current;
@@ -36,6 +38,38 @@ public partial class MainWindow
         {
             TxtServiceHint.Text = "Файлы службы устарели после обновления приложения — нажмите «Обновить файлы службы».";
         }
+
+        RefreshPoolBanner(state);
+    }
+
+    /// <summary>
+    /// Silent check at startup: after an update the installed service keeps running its old
+    /// binaries. The banner on the home screen says so without the user opening «Ключи».
+    /// </summary>
+    private void RefreshPoolBanner(PoolService.State state)
+    {
+        if (BannerPoolService is null)
+        {
+            return;
+        }
+
+        bool outdated = !_poolBannerDismissed
+                        && state is PoolService.State.Running or PoolService.State.Stopped
+                        && PoolService.PayloadOutdated;
+
+        BannerPoolService.Visibility = outdated ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void PoolBanner_Click(object sender, RoutedEventArgs e)
+    {
+        NavKeys.IsChecked = true;
+        CardService?.BringIntoView();
+    }
+
+    private void DismissPoolBanner_Click(object sender, RoutedEventArgs e)
+    {
+        _poolBannerDismissed = true;
+        BannerPoolService.Visibility = Visibility.Collapsed;
     }
 
     private async void ServiceInstall_Click(object sender, RoutedEventArgs e) =>

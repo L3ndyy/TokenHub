@@ -14,7 +14,9 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  # Fast gate: the shipped binary starts, reports its version and the MCP server
+  # answers. Runs before the slower installer build so a broken payload fails early.
+  smoke:
     runs-on: windows-latest
 
     steps:
@@ -23,6 +25,59 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: ${{ runner.os }}-nuget-
+
+      - name: Publish single-file build
+        run: dotnet publish TokenHub\TokenHub.csproj -c Release -p:PublishProfile=SingleFile -o smoke
+
+      - name: The binary reports the project version
+        shell: pwsh
+        run: |
+          $expected = ([regex]'<Version>([^<]+)</Version>').Match((Get-Content TokenHub\TokenHub.csproj -Raw)).Groups[1].Value
+          $reported = (& smoke\TokenHub.exe --version | Out-String).Trim()
+          Write-Host "reported=$reported expected=$expected"
+          if ($reported -ne $expected) { throw "Version mismatch: $reported vs $expected" }
+
+      - name: The MCP server lists its tools
+        shell: pwsh
+        run: |
+          $psi = [System.Diagnostics.ProcessStartInfo]::new()
+          $psi.FileName = (Resolve-Path 'smoke\TokenHub.exe').Path
+          $psi.Arguments = '--mcp-memory'
+          $psi.RedirectStandardInput = $true
+          $psi.RedirectStandardOutput = $true
+          $psi.UseShellExecute = $false
+          $process = [System.Diagnostics.Process]::Start($psi)
+          $process.StandardInput.WriteLine('{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}')
+          $process.StandardInput.Close()
+          $answer = $process.StandardOutput.ReadToEnd()
+          $process.WaitForExit(15000) | Out-Null
+          if ($answer -notmatch 'skill_search') { throw "skill_search is missing from tools/list" }
+          if ($answer -notmatch 'memory_search') { throw "memory_search is missing from tools/list" }
+
+  build:
+    needs: smoke
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: ${{ runner.os }}-nuget-
 
       - name: Tests
         run: dotnet run --project TokenHub.Tests\TokenHub.Tests.csproj -c Release

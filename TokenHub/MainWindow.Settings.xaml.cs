@@ -16,6 +16,16 @@ namespace TokenHub;
 public partial class MainWindow
 {
 
+    /// <summary>Jump to a settings card: the anchor row is the page's short table of contents.</summary>
+    private void SettingsAnchor_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: string name }
+            && FindName(name) is FrameworkElement section)
+        {
+            section.BringIntoView();
+        }
+    }
+
     // ---------------------------------------------------------------- settings backup (T10)
 
     private void BackupAll_Click(object sender, RoutedEventArgs e)

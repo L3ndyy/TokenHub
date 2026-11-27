@@ -165,6 +165,16 @@ public static class MemoryMcp
             "memory_stats",
             "Сколько заметок в памяти и по каким тегам — быстрый способ понять, что уже накоплено.",
             new JsonObject()),
+
+        Tool(
+            "skill_search",
+            "Поиск по каталогу скиллов, которые умеет ставить TokenHub. Используй, чтобы найти готовую инструкцию под задачу, прежде чем писать свою.",
+            new JsonObject
+            {
+                ["query"] = Prop("string", "Что ищем: тема, язык, инструмент."),
+                ["limit"] = Prop("integer", "Сколько скиллов вернуть (по умолчанию 10, максимум 40)."),
+            },
+            "query"),
     };
 
     private static JsonObject Tool(string name, string description, JsonObject properties, params string[] required)
@@ -208,6 +218,7 @@ public static class MemoryMcp
                 "memory_recent" => RecentText(args, scope),
                 "memory_forget" => ForgetText(args),
                 "memory_stats" => StatsText(),
+                "skill_search" => SkillSearchText(args),
                 _ => throw new InvalidOperationException("Неизвестный инструмент: " + name),
             };
 
@@ -316,6 +327,34 @@ public static class MemoryMcp
             : string.Join(", ", tags.Take(12).Select(t => $"#{t.Tag} ({t.Count})"));
 
         return $"Заметок: {MemoryStore.Count}, за сегодня: {MemoryStore.TodayCount()}. {tagLine}";
+    }
+
+    /// <summary>The catalogue the app can install, so the assistant proposes an existing skill instead of reinventing it.</summary>
+    private static string SkillSearchText(JsonNode? args)
+    {
+        string query = StringArg(args, "query", string.Empty).Trim();
+        int limit = Math.Clamp(Int(args, "limit", 10), 1, 40);
+
+        var catalog = Skills.Catalog;
+        IEnumerable<SkillInfo> matches = catalog;
+
+        if (query.Length > 0)
+        {
+            matches = catalog.Where(s =>
+                s.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
+                || s.Description.Contains(query, StringComparison.OrdinalIgnoreCase));
+        }
+
+        var found = matches.Take(limit).ToList();
+        if (found.Count == 0)
+        {
+            return $"Скиллов по запросу «{query}» нет. Всего в наборе: {catalog.Count}.";
+        }
+
+        var lines = found.Select(s =>
+            $"- {s.Name}{(Skills.IsInstalled(s.Name) ? " (установлен)" : string.Empty)} — {s.Description}");
+
+        return $"Скиллы по запросу «{query}» ({found.Count} из {catalog.Count}):\n" + string.Join("\n", lines);
     }
 
     private static string Format(MemoryStore.Entry entry)
