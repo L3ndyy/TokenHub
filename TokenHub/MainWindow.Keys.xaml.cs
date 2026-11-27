@@ -132,6 +132,38 @@ public partial class MainWindow
         TxtKeysHint.Visibility = settings.Keys.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
     }
 
+    /// <summary>
+    /// Placeholder rows for the key list while probes are in flight. The wait is real — every
+    /// check is a network round-trip — so the list admits it instead of looking frozen on stale
+    /// data. Replaced by <see cref="RenderKeys"/> as soon as the sweep finishes.
+    /// </summary>
+    private void ShowKeysSkeleton()
+    {
+        if (KeysList is null)
+        {
+            return;
+        }
+
+        KeysList.Children.Clear();
+        for (int i = 0; i < 3; i++)
+        {
+            var column = new StackPanel();
+            column.Children.Add(SkeletonLine(150, 12));
+            column.Children.Add(SkeletonLine(260, 9));
+
+            KeysList.Children.Add(new Border
+            {
+                Background = ResBrush("Br.Control"),
+                BorderBrush = ResBrush("Br.ControlBorder"),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(8),
+                Padding = new Thickness(12, 10, 12, 10),
+                Margin = new Thickness(0, 0, 0, 8),
+                Child = column,
+            });
+        }
+    }
+
     private UIElement BuildKeyRow(ApiKeyEntry key, int index)
     {
         Kind state = key.Invalid
@@ -505,6 +537,7 @@ public partial class MainWindow
 
         Busy(true);
         Status("Проверяю новый ключ...", Kind.Busy);
+        ShowKeysSkeleton();
         var (ok, message) = await KeyProbe.CheckAsync(entry);
         Busy(false);
         Status($"Ключ добавлен: {message}", ok ? Kind.Ok : Kind.Fail);
@@ -668,6 +701,7 @@ public partial class MainWindow
 
         Busy(true);
         Status("Проверяю все ключи...", Kind.Busy);
+        ShowKeysSkeleton();
 
         foreach (var key in settings.Keys.ToList())
         {

@@ -29,6 +29,98 @@ public partial class MainWindow
         {
             TxtLastEvent.Text = _lastEvent;
         }
+
+        Toast(message, kind);
+    }
+
+    // ---------------------------------------------------------------- toasts
+
+    private const int ToastMax = 3;
+    private static readonly TimeSpan ToastLife = TimeSpan.FromSeconds(6);
+    private readonly List<(Border Card, DispatcherTimer Timer)> _toasts = new();
+
+    /// <summary>
+    /// A notice in the corner. The status bar line is easy to miss when the window sits in
+    /// the background, and a message box would be far too loud for "импорт прошёл". Clicking
+    /// a toast opens the journal; a repeated message refreshes instead of piling up.
+    /// </summary>
+    private void Toast(string message, Kind kind)
+    {
+        if (ToastHost is null || string.IsNullOrWhiteSpace(message))
+        {
+            return;
+        }
+
+        var shown = _toasts.FirstOrDefault(t => (string?)t.Card.Tag == message);
+        if (shown.Card is not null)
+        {
+            shown.Timer.Stop();
+            shown.Timer.Start();
+            return;
+        }
+
+        var row = new StackPanel { Orientation = Orientation.Horizontal };
+        row.Children.Add(new System.Windows.Shapes.Ellipse
+        {
+            Width = 8,
+            Height = 8,
+            Fill = Brush(kind),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 10, 0),
+        });
+        row.Children.Add(new TextBlock
+        {
+            Text = message,
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = ResBrush("Br.Text"),
+            MaxWidth = 380,
+        });
+
+        var card = new Border
+        {
+            Tag = message,
+            Child = row,
+            Background = ResBrush("Br.Popup"),
+            BorderBrush = ResBrush("Br.CardBorder"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(14, 10, 14, 10),
+            Margin = new Thickness(0, 8, 0, 0),
+            Cursor = Cursors.Hand,
+            ToolTip = "Открыть журнал",
+            Opacity = AnimationsEnabled ? 0 : 1,
+        };
+        card.MouseLeftButtonUp += (_, _) => OpenJournal();
+
+        while (_toasts.Count >= ToastMax)
+        {
+            RemoveToast(_toasts[0].Card);
+        }
+
+        ToastHost.Children.Add(card);
+
+        var timer = new DispatcherTimer { Interval = ToastLife };
+        timer.Tick += (_, _) => RemoveToast(card);
+        timer.Start();
+        _toasts.Add((card, timer));
+
+        if (AnimationsEnabled)
+        {
+            card.BeginAnimation(
+                OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(180)));
+        }
+    }
+
+    private void RemoveToast(Border card)
+    {
+        int index = _toasts.FindIndex(t => t.Card == card);
+        if (index >= 0)
+        {
+            _toasts[index].Timer.Stop();
+            _toasts.RemoveAt(index);
+        }
+
+        ToastHost?.Children.Remove(card);
     }
 
     private void OpenJournal_Click(object sender, RoutedEventArgs e) => OpenJournal();

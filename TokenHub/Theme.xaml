@@ -26,6 +26,7 @@
         <SolidColorBrush x:Key="Br.DangerSoft" Color="#33C42B1C" />
         <SolidColorBrush x:Key="Br.DangerBorder" Color="#66C42B1C" />
         <SolidColorBrush x:Key="Br.Muted" Color="#8AFFFFFF" />
+        <SolidColorBrush x:Key="Br.Skeleton" Color="#2EFFFFFF" />
         <SolidColorBrush x:Key="Br.ScrollTrack" Color="#00000000" />
         <SolidColorBrush x:Key="Br.ScrollThumb" Color="#33FFFFFF" />
         <SolidColorBrush x:Key="Br.ScrollThumbHover" Color="#66FFFFFF" />

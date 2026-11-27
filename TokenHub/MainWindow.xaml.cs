@@ -673,6 +673,38 @@ public partial class MainWindow : Window
         return button;
     }
 
+    /// <summary>
+    /// A placeholder bar where a real value is on its way, so a list never reads as "сломано"
+    /// while it is being checked. It breathes unless Windows asks for less motion, and in that
+    /// case it simply sits still.
+    /// </summary>
+    private FrameworkElement SkeletonLine(double width, double height = 10)
+    {
+        var bar = new Border
+        {
+            Width = width,
+            Height = height,
+            CornerRadius = new CornerRadius(height / 2),
+            Background = ResBrush("Br.Skeleton"),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Margin = new Thickness(0, 6, 0, 0),
+        };
+
+        if (AnimationsEnabled)
+        {
+            bar.BeginAnimation(OpacityProperty, new DoubleAnimation
+            {
+                From = 1.0,
+                To = 0.35,
+                Duration = TimeSpan.FromMilliseconds(900),
+                AutoReverse = true,
+                RepeatBehavior = RepeatBehavior.Forever,
+            });
+        }
+
+        return bar;
+    }
+
     private static void Copy(string text)
     {
         try

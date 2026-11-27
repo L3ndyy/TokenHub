@@ -75,6 +75,12 @@
             <!-- soft top highlight, sits under every panel -->
             <Border Grid.RowSpan="3" IsHitTestVisible="False" Background="{StaticResource TopGlow}" />
 
+            <!-- toasts: short-lived notices in the corner, over the content and above the
+                 status bar, so a background window still says what just happened -->
+            <StackPanel x:Name="ToastHost" Grid.Row="1" Panel.ZIndex="20"
+                        HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                        Margin="0,0,24,16" />
+
             <!-- ================= title bar ================= -->
             <Grid Grid.Row="0">
                 <StackPanel Orientation="Horizontal" Margin="16,0,0,0" VerticalAlignment="Center">
@@ -942,7 +948,8 @@
                                     <DockPanel Margin="0,16,0,0">
                                         <ToggleButton x:Name="TglFreeOnly" Style="{StaticResource Switch}" DockPanel.Dock="Right"
                                                       VerticalAlignment="Center"
-                                                      Checked="FreeOnly_Changed" Unchecked="FreeOnly_Changed" />
+                                                      Checked="FreeOnly_Changed" Unchecked="FreeOnly_Changed"
+                                                      AutomationProperties.Name="Только бесплатные модели" />
                                         <StackPanel>
                                             <TextBlock Text="Только бесплатные модели" Style="{StaticResource CardTitle}" />
                                             <TextBlock Style="{StaticResource Caption}"
