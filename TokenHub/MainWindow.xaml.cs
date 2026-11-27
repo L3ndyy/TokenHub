@@ -2118,7 +2118,7 @@ public partial class MainWindow : Window
             titleRow.Children.Add(new Border
             {
                 Background = ResBrush("Br.Accent"),
-                CornerRadius = new CornerRadius(4),
+                CornerRadius = new CornerRadius(6),
                 Padding = new Thickness(6, 2, 6, 2),
                 Margin = new Thickness(0, 0, 8, 0),
                 VerticalAlignment = VerticalAlignment.Center,
@@ -2155,7 +2155,7 @@ public partial class MainWindow : Window
         titleRow.Children.Add(new Border
         {
             Background = ResBrush(chipColor),
-            CornerRadius = new CornerRadius(9),
+            CornerRadius = new CornerRadius(6),
             Padding = new Thickness(8, 2, 8, 2),
             Margin = new Thickness(8, 0, 0, 0),
             VerticalAlignment = VerticalAlignment.Center,
@@ -2257,7 +2257,7 @@ public partial class MainWindow : Window
             Background = ResBrush("Br.Control"),
             BorderBrush = ResBrush("Br.ControlBorder"),
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(7),
+            CornerRadius = new CornerRadius(8),
             Padding = new Thickness(12, 10, 12, 10),
             Margin = new Thickness(0, 0, 0, 8),
             Child = grid,

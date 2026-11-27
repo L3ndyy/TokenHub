@@ -16,7 +16,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ListBoxItem">
-                        <Border x:Name="Bd" Background="Transparent" CornerRadius="6"
+                        <Border x:Name="Bd" Background="Transparent" CornerRadius="{StaticResource Rad.Sm}"
                                 Padding="{TemplateBinding Padding}">
                             <ContentPresenter />
                         </Border>
@@ -37,7 +37,7 @@
         </Style>
     </Window.Resources>
     <Border Background="{DynamicResource Br.Popup}" BorderBrush="{DynamicResource Br.CardBorder}"
-            BorderThickness="1" CornerRadius="10" Padding="12">
+            BorderThickness="1" CornerRadius="{StaticResource Rad.Lg}" Padding="12">
         <StackPanel>
             <TextBox x:Name="TxtFilter" Style="{StaticResource Field}"
                      TextChanged="Filter_Changed"

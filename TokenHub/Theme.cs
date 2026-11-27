@@ -51,6 +51,8 @@ internal static class Theme
             ["Br.AccentBorder"] = dark ? "#33FFFFFF" : "#1A000000",
             ["Br.Success"] = dark ? "#FF6CCB5F" : "#FF0F7B0F",
             ["Br.Danger"] = dark ? "#FFFF99A4" : "#FFC42B1C",
+            ["Br.DangerSoft"] = dark ? "#33C42B1C" : "#1AC42B1C",
+            ["Br.DangerBorder"] = dark ? "#66C42B1C" : "#4DC42B1C",
             ["Br.Muted"] = dark ? "#8AFFFFFF" : "#8F000000",
             ["Br.ScrollTrack"] = "#00000000",
             ["Br.ScrollThumb"] = dark ? "#33FFFFFF" : "#33000000",

@@ -131,7 +131,19 @@ while ((Get-Date) -lt $deadline) {
 if (-not (Test-Path $built)) { throw "Установщик не создан: $built" }
 
 $setup = Join-Path $dist $setupName
-Copy-Item $built $setup -Force
+
+# IExpress (and the virus scanner on a build agent) can hold the freshly written
+# package open for a moment, so the copy is retried instead of failing the run.
+for ($attempt = 1; ; $attempt++) {
+    try {
+        Copy-Item $built $setup -Force -ErrorAction Stop
+        break
+    }
+    catch {
+        if ($attempt -ge 10) { throw }
+        Start-Sleep -Seconds 2
+    }
+}
 
 $size = [math]::Round((Get-Item $setup).Length / 1MB, 1)
 Write-Host "Готово: $setup ($size МБ)"

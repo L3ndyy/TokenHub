@@ -4,6 +4,12 @@
              StartupUri="MainWindow.xaml">
     <Application.Resources>
 
+        <!-- ============ scales ============ -->
+        <!-- Radii: Sm = chips and icon actions, Md = controls, Lg = cards and popups. -->
+        <CornerRadius x:Key="Rad.Sm">6</CornerRadius>
+        <CornerRadius x:Key="Rad.Md">8</CornerRadius>
+        <CornerRadius x:Key="Rad.Lg">12</CornerRadius>
+
         <!-- ============ palette (dark values, theme service overrides them) ============ -->
         <SolidColorBrush x:Key="Br.Layer" Color="#59000000" />
         <SolidColorBrush x:Key="Br.Popup" Color="#FF1B1B1F" />
@@ -19,6 +25,8 @@
         <SolidColorBrush x:Key="Br.AccentBorder" Color="#33FFFFFF" />
         <SolidColorBrush x:Key="Br.Success" Color="#FF6CCB5F" />
         <SolidColorBrush x:Key="Br.Danger" Color="#FFFF99A4" />
+        <SolidColorBrush x:Key="Br.DangerSoft" Color="#33C42B1C" />
+        <SolidColorBrush x:Key="Br.DangerBorder" Color="#66C42B1C" />
         <SolidColorBrush x:Key="Br.Muted" Color="#8AFFFFFF" />
         <SolidColorBrush x:Key="Br.ScrollTrack" Color="#00000000" />
         <SolidColorBrush x:Key="Br.ScrollThumb" Color="#33FFFFFF" />
@@ -72,7 +80,7 @@
             <Setter Property="Background" Value="{DynamicResource Br.Card}" />
             <Setter Property="BorderBrush" Value="{DynamicResource Br.CardBorder}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="14" />
+            <Setter Property="CornerRadius" Value="{StaticResource Rad.Lg}" />
             <Setter Property="Padding" Value="24" />
         </Style>
 
@@ -102,7 +110,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" CornerRadius="8"
+                        <Border x:Name="Bd" CornerRadius="{StaticResource Rad.Md}"
                                 Background="{TemplateBinding Background}"
                                 BorderThickness="1"
                                 BorderBrush="{DynamicResource Br.AccentBorder}"
@@ -136,7 +144,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" CornerRadius="8"
+                        <Border x:Name="Bd" CornerRadius="{StaticResource Rad.Md}"
                                 Background="{TemplateBinding Background}"
                                 BorderThickness="1"
                                 BorderBrush="{DynamicResource Br.ControlBorder}"
@@ -180,7 +188,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" CornerRadius="7"
+                        <Border x:Name="Bd" CornerRadius="{StaticResource Rad.Sm}"
                                 Background="{TemplateBinding Background}"
                                 BorderThickness="1"
                                 BorderBrush="{TemplateBinding BorderBrush}">
@@ -208,7 +216,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" CornerRadius="7"
+                        <Border x:Name="Bd" CornerRadius="{StaticResource Rad.Sm}"
                                 Background="{TemplateBinding Background}"
                                 BorderThickness="1"
                                 BorderBrush="{TemplateBinding BorderBrush}">
@@ -216,9 +224,9 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#33C42B1C" />
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="#66C42B1C" />
-                                <Setter Property="Foreground" Value="#FF8A80" />
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Br.DangerSoft}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Br.DangerBorder}" />
+                                <Setter Property="Foreground" Value="{DynamicResource Br.Danger}" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter TargetName="Bd" Property="Opacity" Value="0.8" />
@@ -239,7 +247,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" CornerRadius="12"
+                        <Border x:Name="Bd" CornerRadius="{StaticResource Rad.Lg}"
                                 Background="{TemplateBinding Background}"
                                 BorderThickness="1"
                                 BorderBrush="{DynamicResource Br.ControlBorder}"
@@ -268,7 +276,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" Background="Transparent" CornerRadius="6">
+                        <Border x:Name="Bd" Background="Transparent" CornerRadius="{StaticResource Rad.Sm}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
@@ -285,7 +293,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" Background="Transparent" CornerRadius="6">
+                        <Border x:Name="Bd" Background="Transparent" CornerRadius="{StaticResource Rad.Sm}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
@@ -309,7 +317,7 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="RadioButton">
                         <Grid>
-                            <Border x:Name="Bd" CornerRadius="8" Background="Transparent" Margin="0,1" />
+                            <Border x:Name="Bd" CornerRadius="{StaticResource Rad.Md}" Background="Transparent" Margin="0,1" />
                             <Border x:Name="Ind" Width="3" Height="18" CornerRadius="2"
                                     HorizontalAlignment="Left" Margin="3,0,0,0"
                                     Background="{DynamicResource Br.Accent}"
@@ -339,7 +347,7 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="ToggleButton">
                         <Grid>
-                            <Border x:Name="Track" CornerRadius="12"
+                            <Border x:Name="Track" CornerRadius="{StaticResource Rad.Lg}"
                                     Background="{DynamicResource Br.Control}"
                                     BorderThickness="1"
                                     BorderBrush="{DynamicResource Br.ControlBorder}" />
@@ -459,7 +467,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" CornerRadius="10" Background="{TemplateBinding Background}"
+                        <Border x:Name="Bd" CornerRadius="{StaticResource Rad.Lg}" Background="{TemplateBinding Background}"
                                 Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Center" />
                         </Border>
@@ -490,7 +498,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="TextBox">
-                        <Border x:Name="Bd" CornerRadius="8"
+                        <Border x:Name="Bd" CornerRadius="{StaticResource Rad.Md}"
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}">
@@ -552,7 +560,7 @@
                                     <ControlTemplate TargetType="ToggleButton">
                                         <Border Background="{DynamicResource Br.Control}"
                                                 BorderBrush="{DynamicResource Br.ControlBorder}"
-                                                BorderThickness="1" CornerRadius="8">
+                                                BorderThickness="1" CornerRadius="{StaticResource Rad.Md}">
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
@@ -581,7 +589,7 @@
                                    PopupAnimation="Fade">
                                 <Border Background="{DynamicResource Br.Popup}"
                                         BorderBrush="{DynamicResource Br.CardBorder}"
-                                        BorderThickness="1" CornerRadius="10" Margin="0,6,0,0"
+                                        BorderThickness="1" CornerRadius="{StaticResource Rad.Lg}" Margin="0,6,0,0"
                                         MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
                                         MaxHeight="{TemplateBinding MaxDropDownHeight}">
                                     <ScrollViewer>

@@ -8,7 +8,7 @@
         FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="13"
         TextOptions.TextFormattingMode="Display" UseLayoutRounding="True">
     <Border Background="{DynamicResource Br.Popup}" BorderBrush="{DynamicResource Br.CardBorder}"
-            BorderThickness="1" CornerRadius="10" Padding="14">
+            BorderThickness="1" CornerRadius="{StaticResource Rad.Lg}" Padding="14">
         <StackPanel>
             <DockPanel>
                 <Ellipse x:Name="TrayDot" DockPanel.Dock="Left" Width="9" Height="9"
