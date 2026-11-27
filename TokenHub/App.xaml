@@ -144,6 +144,69 @@
             <Setter Property="FontSize" Value="13" />
         </Style>
 
+        <!-- Compact icon action for list rows: 30x30, the tooltip names the action. -->
+        <Style x:Key="RowIconButton" TargetType="Button">
+            <Setter Property="Width" Value="30" />
+            <Setter Property="Height" Value="30" />
+            <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Foreground" Value="{DynamicResource Br.TextSecondary}" />
+            <Setter Property="Background" Value="{DynamicResource Br.Control}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Br.ControlBorder}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" CornerRadius="7"
+                                Background="{TemplateBinding Background}"
+                                BorderThickness="1"
+                                BorderBrush="{TemplateBinding BorderBrush}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Br.ControlHover}" />
+                                <Setter Property="Foreground" Value="{DynamicResource Br.Text}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.8" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.35" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Same, but warns on hover: used for the destructive action. -->
+        <Style x:Key="RowIconDanger" TargetType="Button" BasedOn="{StaticResource RowIconButton}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" CornerRadius="7"
+                                Background="{TemplateBinding Background}"
+                                BorderThickness="1"
+                                BorderBrush="{TemplateBinding BorderBrush}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#33C42B1C" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#66C42B1C" />
+                                <Setter Property="Foreground" Value="#FF8A80" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.8" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- big launcher tile -->
         <Style x:Key="TileButton" TargetType="Button">
             <Setter Property="Foreground" Value="{DynamicResource Br.Text}" />

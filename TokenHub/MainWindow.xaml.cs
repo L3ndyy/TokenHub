@@ -2218,12 +2218,14 @@ public partial class MainWindow : Window
 
         if (index > 0)
         {
-            buttons.Children.Add(RowButton("Сделать главным", key.Id, MakePrimary_Click, key.Label));
+            buttons.Children.Add(IconRowButton("\uE718", "Сделать главным", key.Id, MakePrimary_Click, key.Label));
         }
 
-        buttons.Children.Add(RowButton("Проверить", key.Id, CheckKey_Click, key.Label));
-        buttons.Children.Add(RowButton(key.Enabled ? "Выключить" : "Включить", key.Id, ToggleKey_Click, key.Label));
-        buttons.Children.Add(RowButton("Удалить", key.Id, DeleteKey_Click, key.Label));
+        buttons.Children.Add(IconRowButton("\uE72C", "Проверить", key.Id, CheckKey_Click, key.Label));
+        buttons.Children.Add(key.Enabled
+            ? IconRowButton("\uE769", "Выключить", key.Id, ToggleKey_Click, key.Label)
+            : IconRowButton("\uE768", "Включить", key.Id, ToggleKey_Click, key.Label));
+        buttons.Children.Add(IconRowButton("\uE74D", "Удалить", key.Id, DeleteKey_Click, key.Label, danger: true));
 
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -2381,21 +2383,34 @@ public partial class MainWindow : Window
         RefreshPoolState();
     }
 
-    private static Button RowButton(string content, string id, RoutedEventHandler handler, string? subject = null)
+    /// <summary>
+    /// One compact icon action in a list row. The tooltip carries the action name, so the
+    /// button stays 30px wide; screen readers get the same text through the name.
+    /// </summary>
+    private static Button IconRowButton(
+        string glyph,
+        string action,
+        string id,
+        RoutedEventHandler handler,
+        string? subject = null,
+        bool danger = false)
     {
+        string label = string.IsNullOrWhiteSpace(subject) ? action : $"{action} — {subject}";
+
         var button = new Button
         {
-            Content = content,
-            Style = StyleOf("SubtleButton"),
+            Content = glyph,
+            Style = StyleOf(danger ? "RowIconDanger" : "RowIconButton"),
             Tag = id,
-            Margin = new Thickness(8, 0, 0, 0),
+            Margin = new Thickness(6, 0, 0, 0),
+            ToolTip = label,
         };
         button.Click += handler;
 
-        // Item V12: screen readers announce "Проверить — Ключ 1", not a bare verb.
-        System.Windows.Automation.AutomationProperties.SetName(
-            button,
-            string.IsNullOrWhiteSpace(subject) ? content : $"{content} — {subject}");
+        // Item V12: screen readers announce "Проверить — Ключ 1", not a bare glyph.
+        System.Windows.Automation.AutomationProperties.SetName(button, label);
+        ToolTipService.SetInitialShowDelay(button, 300);
+        ToolTipService.SetShowDuration(button, 12000);
 
         return button;
     }
