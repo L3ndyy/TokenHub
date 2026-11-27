@@ -62,6 +62,11 @@
             <Setter Property="TextWrapping" Value="Wrap" />
         </Style>
 
+        <!-- Every number is tabular, so the live counters stop jittering as they tick (V3). -->
+        <Style TargetType="TextBlock">
+            <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
+        </Style>
+
         <!-- ============ surfaces ============ -->
         <Style x:Key="Card" TargetType="Border">
             <Setter Property="Background" Value="{DynamicResource Br.Card}" />
@@ -72,12 +77,27 @@
         </Style>
 
         <!-- ============ buttons ============ -->
+
+        <!-- Keyboard focus ring: one accent outline, so Tab is never a blind walk. -->
+        <Style x:Key="FocusRing">
+            <Setter Property="Control.Template">
+                <Setter.Value>
+                    <ControlTemplate>
+                        <Border Margin="-2" CornerRadius="9"
+                                BorderBrush="{DynamicResource Br.Accent}" BorderThickness="2"
+                                SnapsToDevicePixels="True" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="AccentButton" TargetType="Button">
             <Setter Property="Foreground" Value="{DynamicResource Br.OnAccent}" />
             <Setter Property="Background" Value="{DynamicResource Br.Accent}" />
             <Setter Property="Padding" Value="18,9" />
             <Setter Property="FontSize" Value="13" />
             <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRing}" />
             <Setter Property="SnapsToDevicePixels" Value="True" />
             <Setter Property="Template">
                 <Setter.Value>
@@ -111,6 +131,7 @@
             <Setter Property="Padding" Value="18,9" />
             <Setter Property="FontSize" Value="13" />
             <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRing}" />
             <Setter Property="SnapsToDevicePixels" Value="True" />
             <Setter Property="Template">
                 <Setter.Value>
@@ -154,6 +175,7 @@
             <Setter Property="Background" Value="{DynamicResource Br.Control}" />
             <Setter Property="BorderBrush" Value="{DynamicResource Br.ControlBorder}" />
             <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRing}" />
             <Setter Property="SnapsToDevicePixels" Value="True" />
             <Setter Property="Template">
                 <Setter.Value>
@@ -212,6 +234,7 @@
             <Setter Property="Foreground" Value="{DynamicResource Br.Text}" />
             <Setter Property="Background" Value="{DynamicResource Br.Control}" />
             <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRing}" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             <Setter Property="Template">
                 <Setter.Value>
@@ -280,6 +303,7 @@
         <Style x:Key="NavItem" TargetType="RadioButton">
             <Setter Property="Height" Value="44" />
             <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRing}" />
             <Setter Property="Foreground" Value="{DynamicResource Br.Text}" />
             <Setter Property="Template">
                 <Setter.Value>

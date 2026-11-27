@@ -326,21 +326,21 @@ public partial class MainWindow : Window
     /// </summary>
     private void StartLogoBreath()
     {
-        if (!AnimationsEnabled || LogoStop is null)
+        if (!AnimationsEnabled || LogoTile is null)
         {
             return;
         }
 
-        var breath = new ColorAnimation
+        var breath = new DoubleAnimation
         {
-            From = Color.FromRgb(0xE9, 0xEE, 0xFF),
-            To = Color.FromRgb(0xCF, 0xE0, 0xFF),
+            From = 1.0,
+            To = 0.85,
             Duration = TimeSpan.FromSeconds(5),
             AutoReverse = true,
             RepeatBehavior = RepeatBehavior.Forever,
         };
 
-        LogoStop.BeginAnimation(GradientStop.ColorProperty, breath);
+        LogoTile.BeginAnimation(UIElement.OpacityProperty, breath);
     }
 
     private void RefreshStats()
@@ -642,10 +642,20 @@ public partial class MainWindow : Window
 
     private void ResetStats_Click(object sender, RoutedEventArgs e)
     {
+        if (MessageBox.Show(
+                this,
+                "Сбросить статистику? Обнулятся сегодняшние счётчики и история по дням — график за неделю начнётся заново. Ключи и настройки не затрагиваются.",
+                "TokenHub",
+                MessageBoxButton.OKCancel,
+                MessageBoxImage.Warning) != MessageBoxResult.OK)
+        {
+            return;
+        }
+
         LocalProxy.Instance.ResetStats();
         UsageStore.Reset();
         RefreshStats();
-        Journal("Счётчики статистики сброшены (сессия и текущий день)", Kind.Ok);
+        Journal("Счётчики статистики сброшены (сегодня и история по дням)", Kind.Ok);
     }
 
     private static string StrategyName(string strategy) => strategy switch
