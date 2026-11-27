@@ -652,8 +652,6 @@
                                     </Grid>
 
                                     <StackPanel x:Name="KeysList" Margin="0,12,0,0" />
-                                    <TextBlock x:Name="TxtKeysEmpty" Style="{StaticResource Caption}" Margin="0,8,0,0"
-                                               Text="Ключей пока нет — добавьте первый." />
                                     <TextBlock x:Name="TxtKeysHint" Style="{StaticResource Caption}" Margin="0,10,0,0"
                                                Text="Ключи пробуются сверху вниз. Первый в списке — главный. Перетащите строку мышью, чтобы изменить порядок. Значение иконок справа подсказывает всплывающая подсказка." />
                                 </StackPanel>
@@ -747,8 +745,9 @@
                             <TextBlock Text="Скиллы" Style="{StaticResource Title}" />
                             <TextBlock Style="{StaticResource Subtitle}" Text="Готовые наборы инструкций для OpenCode" />
 
-                            <Border Style="{StaticResource Card}" Margin="0,18,0,0"
-                                    AllowDrop="True" DragOver="SkillsImport_DragOver" Drop="SkillsImport_Drop">
+                            <Border x:Name="CardSkillsImport" Style="{StaticResource Card}" Margin="0,18,0,0"
+                                    AllowDrop="True" DragOver="SkillsImport_DragOver" DragLeave="SkillsImport_DragLeave"
+                                    Drop="SkillsImport_Drop">
                                 <StackPanel>
                                     <TextBlock x:Name="TxtSkillsState" Style="{StaticResource Body}" Text="Проверка..." />
                                     <TextBlock x:Name="TxtSkillsPath" Style="{StaticResource Mono}" Margin="0,8,0,0"

@@ -20,6 +20,7 @@
         <SolidColorBrush x:Key="Br.Accent" Color="#FF4CC2FF" />
         <SolidColorBrush x:Key="Br.OnAccent" Color="#FF0A0A0A" />
         <SolidColorBrush x:Key="Br.AccentBorder" Color="#33FFFFFF" />
+        <SolidColorBrush x:Key="Br.AccentSoft" Color="#334CC2FF" />
         <SolidColorBrush x:Key="Br.Success" Color="#FF6CCB5F" />
         <SolidColorBrush x:Key="Br.Danger" Color="#FFFF99A4" />
         <SolidColorBrush x:Key="Br.DangerSoft" Color="#33C42B1C" />

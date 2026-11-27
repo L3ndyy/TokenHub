@@ -114,17 +114,19 @@ public partial class MainWindow
 
         if (settings.Keys.Count == 0)
         {
-            TxtKeysEmpty.Text = "Ключей пока нет — добавьте первый ключ Token Harbor, и пул заработает.";
-            TxtKeysEmpty.Visibility = Visibility.Visible;
+            KeysList.Children.Add(EmptyState(
+                "\uE72E",
+                "Ключей пока нет",
+                "Добавьте первый ключ Token Harbor — пул заработает сразу. Ключи лежат на этом компьютере в зашифрованном виде.",
+                EmptyStateButton("Добавить ключ", "AccentButton", AddKey_Click),
+                EmptyStateButton("Импорт ключей", "SubtleButton", ImportKeys_Click, 8)));
         }
         else if (visible.Count == 0)
         {
-            TxtKeysEmpty.Text = $"Ничего не найдено по запросу «{query}».";
-            TxtKeysEmpty.Visibility = Visibility.Visible;
-        }
-        else
-        {
-            TxtKeysEmpty.Visibility = Visibility.Collapsed;
+            KeysList.Children.Add(EmptyState(
+                "\uE721",
+                "Ничего не найдено",
+                $"По запросу «{query}» ключей нет. Проверьте написание или очистите поиск."));
         }
 
         TxtKeysHint.Visibility = settings.Keys.Count > 1 ? Visibility.Visible : Visibility.Collapsed;

@@ -600,6 +600,79 @@ public partial class MainWindow : Window
         badge.ToolTip = toolTip;
     }
 
+    /// <summary>
+    /// The "nothing here" block: a glyph, a headline, one line saying what to do next and,
+    /// when the list is empty rather than filtered, the actions that fill it. Used by the
+    /// key list and the skill catalogue so both say the same kind of thing.
+    /// </summary>
+    private FrameworkElement EmptyState(string glyph, string title, string hint, params UIElement[] actions)
+    {
+        var panel = new StackPanel { Margin = new Thickness(0, 14, 0, 6) };
+
+        panel.Children.Add(new TextBlock
+        {
+            Text = glyph,
+            FontFamily = GlyphFont,
+            FontSize = 26,
+            Foreground = ResBrush("Br.Muted"),
+            HorizontalAlignment = HorizontalAlignment.Center,
+        });
+
+        panel.Children.Add(new TextBlock
+        {
+            Text = title,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = ResBrush("Br.Text"),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 8, 0, 0),
+        });
+
+        panel.Children.Add(new TextBlock
+        {
+            Text = hint,
+            Style = (Style)FindResource("Caption"),
+            TextAlignment = TextAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            MaxWidth = 430,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 4, 0, 0),
+        });
+
+        if (actions.Length > 0)
+        {
+            var row = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 14, 0, 0),
+            };
+
+            foreach (var action in actions)
+            {
+                row.Children.Add(action);
+            }
+
+            panel.Children.Add(row);
+        }
+
+        return panel;
+    }
+
+    /// <summary>A button for an empty state, wired to an existing click handler.</summary>
+    private Button EmptyStateButton(string text, string style, RoutedEventHandler click, double left = 0)
+    {
+        var button = new Button
+        {
+            Content = text,
+            Style = (Style)FindResource(style),
+            Margin = new Thickness(left, 0, 0, 0),
+        };
+
+        button.Click += click;
+        AutomationProperties.SetName(button, text);
+        return button;
+    }
+
     private static void Copy(string text)
     {
         try

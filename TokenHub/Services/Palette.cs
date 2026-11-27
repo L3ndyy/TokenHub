@@ -19,6 +19,7 @@ public static class Palette
         ("Br.ControlHover", dark ? "#22FFFFFF" : "#FFFFFFFF"),
         ("Br.ControlBorder", dark ? "#1AFFFFFF" : "#12000000"),
         ("Br.Accent", accent),
+        ("Br.AccentSoft", SoftAccent(accent)),
         ("Br.OnAccent", dark ? "#FF0A0A0A" : "#FFFFFFFF"),
         ("Br.AccentBorder", dark ? "#33FFFFFF" : "#1A000000"),
         ("Br.Success", dark ? "#FF6CCB5F" : "#FF0F7B0F"),
@@ -30,4 +31,15 @@ public static class Palette
         ("Br.ScrollThumb", dark ? "#33FFFFFF" : "#33000000"),
         ("Br.ScrollThumbHover", dark ? "#66FFFFFF" : "#55000000"),
     };
+
+    /// <summary>
+    /// The accent at 20% alpha: a surface that lights up without shouting, used for the
+    /// live drop target. The accent arrives as either #RRGGBB or #AARRGGBB, so the alpha
+    /// is dropped before the soft one is added.
+    /// </summary>
+    private static string SoftAccent(string accent)
+    {
+        string rgb = accent.TrimStart('#');
+        return "#33" + (rgb.Length == 8 ? rgb.Substring(2) : rgb);
+    }
 }

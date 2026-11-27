@@ -219,19 +219,36 @@ public partial class MainWindow
 
         if (_skillsShown == 0)
         {
-            SkillsGroups.Children.Add(new TextBlock
-            {
-                Text = Skills.Catalog.Count == 0
-                    ? "В этой сборке нет набора скиллов."
-                    : favoriteOnly && favorites.Count == 0
-                        ? "В избранном пока пусто — нажмите звёздочку у названия скилла."
-                        : "Ничего не найдено.",
-                Style = (Style)FindResource("Caption"),
-            });
+            SkillsGroups.Children.Add(SkillsEmptyState(favoriteOnly, favorites.Count));
         }
 
         RefreshSkillsState();
         UpdateSkillsHint();
+    }
+
+    /// <summary>Why the catalogue is empty: nothing installed, nothing starred, or a filter that matches nothing.</summary>
+    private FrameworkElement SkillsEmptyState(bool favoriteOnly, int favorites)
+    {
+        if (Skills.Catalog.Count == 0)
+        {
+            return EmptyState(
+                "\uE8F1",
+                "Набор скиллов не найден",
+                "Каталог приходит вместе с OpenCode. Установите или запустите его — список подхватится сам, перезапускать TokenHub не нужно.");
+        }
+
+        if (favoriteOnly && favorites == 0)
+        {
+            return EmptyState(
+                "\uE734",
+                "В избранном пусто",
+                "Нажмите звёздочку у названия скилла — он останется здесь, даже когда фильтр выключен.");
+        }
+
+        return EmptyState(
+            "\uE721",
+            "Ничего не найдено",
+            $"По запросу «{TxtSkillSearch?.Text?.Trim()}» скиллов нет. Попробуйте другое слово или очистите поиск.");
     }
 
     /// <summary>One collapsible bucket of skills, folded by default.</summary>
@@ -783,14 +800,42 @@ public partial class MainWindow
     /// <summary>Accepts a dragged folder or .zip anywhere on the skills card.</summary>
     private void SkillsImport_DragOver(object sender, DragEventArgs e)
     {
-        e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop)
-            ? DragDropEffects.Copy
-            : DragDropEffects.None;
+        bool files = e.Data.GetDataPresent(DataFormats.FileDrop);
+        e.Effects = files ? DragDropEffects.Copy : DragDropEffects.None;
+        SetDropHighlight(files);
         e.Handled = true;
+    }
+
+    private void SkillsImport_DragLeave(object sender, DragEventArgs e) => SetDropHighlight(false);
+
+    /// <summary>
+    /// Lights the import card up while a folder or archive hovers over it, so it is obvious
+    /// that letting go here does something. The values are cleared instead of set back by
+    /// hand, so the card returns to whatever its style says.
+    /// </summary>
+    private void SetDropHighlight(bool on)
+    {
+        if (CardSkillsImport is null)
+        {
+            return;
+        }
+
+        if (on)
+        {
+            CardSkillsImport.Background = ResBrush("Br.AccentSoft");
+            CardSkillsImport.BorderBrush = ResBrush("Br.Accent");
+        }
+        else
+        {
+            CardSkillsImport.ClearValue(Border.BackgroundProperty);
+            CardSkillsImport.ClearValue(Border.BorderBrushProperty);
+        }
     }
 
     private void SkillsImport_Drop(object sender, DragEventArgs e)
     {
+        SetDropHighlight(false);
+
         if (e.Data.GetData(DataFormats.FileDrop) is not string[] paths)
         {
             return;
