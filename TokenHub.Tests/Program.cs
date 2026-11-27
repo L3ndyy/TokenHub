@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -26,6 +27,7 @@ internal static class Program
         UsageScannerTests();
         UsageStoreTests();
         MemoryStoreTests();
+        SkillsTests();
         OpenCodeConfigTests();
         DpapiTests();
         SettingsRoundTripTests();
@@ -432,6 +434,79 @@ internal static class Program
                 // Temp folder is harmless.
             }
         }
+    }
+
+    // ---------------------------------------------------------------- skills import
+
+    private static void SkillsTests()
+    {
+        string temp = Path.Combine(Path.GetTempPath(), "tokenhub-skills-" + Guid.NewGuid().ToString("n"));
+        string target = Path.Combine(temp, "target");
+        Directory.CreateDirectory(target);
+
+        try
+        {
+            // A folder straight from a GitHub download.
+            string source = Path.Combine(temp, "my-skill");
+            Directory.CreateDirectory(Path.Combine(source, "scripts"));
+            File.WriteAllText(Path.Combine(source, "SKILL.md"), "---\nname: my-skill\ndescription: test\n---\n");
+            File.WriteAllText(Path.Combine(source, "scripts", "run.ps1"), "Write-Host 1");
+
+            Check("импорт скилла из папки", Skills.ImportFolder(source, target) == 1,
+                "скопировано не 1");
+            Check("импорт папки: вложенный файл на месте",
+                File.Exists(Path.Combine(target, "my-skill", "scripts", "run.ps1")),
+                "scripts/run.ps1 отсутствует");
+            Check("импорт папки без SKILL.md отклонён",
+                Skills.ImportFolder(Path.Combine(temp, "nope"), target) == 0, "принял не скилл");
+
+            // A downloaded collection: a parent folder with several skills inside.
+            string pack = Path.Combine(temp, "pack");
+            Directory.CreateDirectory(Path.Combine(pack, "one"));
+            Directory.CreateDirectory(Path.Combine(pack, "two"));
+            File.WriteAllText(Path.Combine(pack, "one", "SKILL.md"), "---\nname: one\n---\n");
+            File.WriteAllText(Path.Combine(pack, "two", "SKILL.md"), "---\nname: two\n---\n");
+            Check("импорт папки-набора: обе вложенные папки",
+                Skills.ImportFolder(pack, target) == 2, "скопировано не 2");
+
+            // An archive with a wrapping skills/ folder and a second one at the root.
+            string zip = Path.Combine(temp, "pack.zip");
+            using (var archive = ZipFile.Open(zip, ZipArchiveMode.Create))
+            {
+                AddEntry(archive, "skills/from-zip/SKILL.md", "---\nname: from-zip\n---\n");
+                AddEntry(archive, "skills/from-zip/scripts/a.sh", "echo a");
+                AddEntry(archive, "flat/SKILL.md", "---\nname: flat\n---\n");
+                AddEntry(archive, "readme.txt", "not a skill");
+            }
+
+            int copied = Skills.ImportZip(zip, target);
+            Check("импорт архива: обе папки со SKILL.md", copied == 2, copied);
+            Check("импорт архива: файлы рядом с манифестом",
+                File.Exists(Path.Combine(target, "from-zip", "scripts", "a.sh")),
+                "scripts/a.sh отсутствует");
+            Check("импорт архива: корневой скилл", File.Exists(Path.Combine(target, "flat", "SKILL.md")),
+                "flat/SKILL.md отсутствует");
+            Check("импорт архива: чужие файлы не копируются",
+                !File.Exists(Path.Combine(target, "readme.txt")), "скопировал лишнее");
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(temp, recursive: true);
+            }
+            catch
+            {
+                // A leftover temp folder must not fail the suite.
+            }
+        }
+    }
+
+    private static void AddEntry(ZipArchive archive, string name, string text)
+    {
+        var entry = archive.CreateEntry(name);
+        using var writer = new StreamWriter(entry.Open(), new UTF8Encoding(false));
+        writer.Write(text);
     }
 
     private static void Check(string name, KeyFault expected, KeyFault actual) =>

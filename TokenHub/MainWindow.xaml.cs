@@ -3108,24 +3108,29 @@ public partial class MainWindow : Window
         {
             body.Children.Add(new TextBlock
             {
-                Text = "Уже установлено",
+                Text = Skills.IsShipped(skill.Name)
+                    ? "Уже установлено"
+                    : "Уже установлено из общего каталога ~/.agents\\skills",
                 Style = (Style)FindResource("Caption"),
                 Foreground = (Brush)FindResource("Br.Success"),
                 Margin = new Thickness(0, 8, 0, 0),
             });
 
-            var reinstall = new Button
+            if (Skills.IsShipped(skill.Name))
             {
-                Content = "Обновить",
-                Style = (Style)FindResource("SubtleButton"),
-                Padding = new Thickness(14, 7, 14, 7),
-                FontSize = 12,
-                HorizontalAlignment = HorizontalAlignment.Left,
-                Margin = new Thickness(0, 8, 0, 0),
-            };
-            AutomationProperties.SetName(reinstall, "Обновить " + skill.Name);
-            reinstall.Click += (_, _) => InstallSkills(new[] { skill.Name }, skill.Name);
-            body.Children.Add(reinstall);
+                var reinstall = new Button
+                {
+                    Content = "Обновить",
+                    Style = (Style)FindResource("SubtleButton"),
+                    Padding = new Thickness(14, 7, 14, 7),
+                    FontSize = 12,
+                    HorizontalAlignment = HorizontalAlignment.Left,
+                    Margin = new Thickness(0, 8, 0, 0),
+                };
+                AutomationProperties.SetName(reinstall, "Обновить " + skill.Name);
+                reinstall.Click += (_, _) => InstallSkills(new[] { skill.Name }, skill.Name);
+                body.Children.Add(reinstall);
+            }
         }
         else
         {
@@ -3485,7 +3490,7 @@ public partial class MainWindow : Window
     private void UpdateInstalledSkills_Click(object sender, RoutedEventArgs e)
     {
         var installed = Skills.Catalog
-            .Where(skill => Skills.IsInstalled(skill.Name))
+            .Where(skill => Skills.IsShipped(skill.Name) && Skills.IsInstalled(skill.Name))
             .Select(skill => skill.Name)
             .ToList();
 
@@ -3496,6 +3501,130 @@ public partial class MainWindow : Window
         }
 
         InstallSkills(installed, "обновление установленных");
+    }
+
+    /// <summary>Copies a skill folder the user picked, e.g. one downloaded from GitHub.</summary>
+    private void ImportSkillFolder_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new Microsoft.Win32.OpenFolderDialog
+        {
+            Title = "Выберите папку скилла (внутри должен быть SKILL.md)",
+            Multiselect = false,
+        };
+
+        if (dialog.ShowDialog(this) != true)
+        {
+            return;
+        }
+
+        try
+        {
+            Busy(true);
+            int copied = Skills.ImportFolder(dialog.FolderName);
+            Busy(false);
+
+            if (copied == 0)
+            {
+                Status("В выбранной папке нет SKILL.md — это не скилл.", Kind.Fail);
+                return;
+            }
+
+            Skills.Reload();
+            RenderSkills();
+            Journal($"Скилл добавлен: {System.IO.Path.GetFileName(dialog.FolderName)}", Kind.Ok);
+        }
+        catch (Exception ex)
+        {
+            Busy(false);
+            Status("Не удалось добавить скилл: " + ex.Message, Kind.Fail);
+        }
+    }
+
+    /// <summary>Accepts a dragged folder or .zip anywhere on the skills card.</summary>
+    private void SkillsImport_DragOver(object sender, DragEventArgs e)
+    {
+        e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop)
+            ? DragDropEffects.Copy
+            : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void SkillsImport_Drop(object sender, DragEventArgs e)
+    {
+        if (e.Data.GetData(DataFormats.FileDrop) is not string[] paths)
+        {
+            return;
+        }
+
+        int added = 0;
+        foreach (string path in paths)
+        {
+            try
+            {
+                if (System.IO.Directory.Exists(path))
+                {
+                    added += Skills.ImportFolder(path);
+                }
+                else if (path.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+                {
+                    added += Skills.ImportZip(path);
+                }
+            }
+            catch
+            {
+                // One bad item must not cancel the rest of the drop.
+            }
+        }
+
+        e.Handled = true;
+
+        if (added == 0)
+        {
+            Status("В перетащенном нет скиллов — нужна папка с SKILL.md или архив.", Kind.Unknown);
+            return;
+        }
+
+        Skills.Reload();
+        RenderSkills();
+        Journal($"Добавлено скиллов перетаскиванием: {added}", Kind.Ok);
+    }
+
+    /// <summary>Takes a .zip of one or more skills and unpacks them into the skills folder.</summary>
+    private void ImportSkillZip_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Выберите архив со скиллами",
+            Filter = "Архив со скиллами (*.zip)|*.zip",
+            Multiselect = false,
+        };
+
+        if (dialog.ShowDialog(this) != true)
+        {
+            return;
+        }
+
+        try
+        {
+            Busy(true);
+            int copied = Skills.ImportZip(dialog.FileName);
+            Busy(false);
+
+            if (copied == 0)
+            {
+                Status("В архиве не нашлось ни одного SKILL.md.", Kind.Fail);
+                return;
+            }
+
+            Skills.Reload();
+            RenderSkills();
+            Journal($"Из архива добавлено скиллов: {copied}", Kind.Ok);
+        }
+        catch (Exception ex)
+        {
+            Busy(false);
+            Status("Не удалось разобрать архив: " + ex.Message, Kind.Fail);
+        }
     }
 
     private void SkillFav_Changed(object sender, RoutedEventArgs e)

@@ -636,7 +636,8 @@
                             <TextBlock Text="Скиллы" Style="{StaticResource Title}" />
                             <TextBlock Style="{StaticResource Subtitle}" Text="Готовые наборы инструкций для OpenCode" />
 
-                            <Border Style="{StaticResource Card}" Margin="0,18,0,0">
+                            <Border Style="{StaticResource Card}" Margin="0,18,0,0"
+                                    AllowDrop="True" DragOver="SkillsImport_DragOver" Drop="SkillsImport_Drop">
                                 <StackPanel>
                                     <TextBlock x:Name="TxtSkillsState" Style="{StaticResource Body}" Text="Проверка..." />
                                     <TextBlock x:Name="TxtSkillsPath" Style="{StaticResource Mono}" Margin="0,8,0,0"
@@ -650,7 +651,15 @@
                                                 AutomationProperties.Name="Обновить установленные скиллы" />
                                         <Button Style="{StaticResource SubtleButton}" Content="Открыть папку"
                                                 Margin="0,0,8,8" Click="OpenSkillsFolder_Click" />
+                                        <Button Style="{StaticResource SubtleButton}" Content="Добавить папку"
+                                                Margin="0,0,8,8" Click="ImportSkillFolder_Click"
+                                                AutomationProperties.Name="Добавить скилл из папки" />
+                                        <Button Style="{StaticResource SubtleButton}" Content="Добавить архив (.zip)"
+                                                Margin="0,0,8,8" Click="ImportSkillZip_Click"
+                                                AutomationProperties.Name="Добавить скиллы из архива" />
                                     </WrapPanel>
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,4,0,0" TextWrapping="Wrap"
+                                               Text="Новый скилл — это папка с файлом SKILL.md. Выберите её, целый архив или просто перетащите папку (.zip) в эту карточку: TokenHub сразу скопирует содержимое в папку скиллов, перезапускать приложение не нужно." />
                                 </StackPanel>
                             </Border>
 
