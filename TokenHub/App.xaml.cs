@@ -11,11 +11,25 @@ public partial class App : Application
     /// <summary>True when launched with --minimized, so the window starts in the tray (item T14).</summary>
     public static bool StartMinimized { get; private set; }
 
+    /// <summary>
+    /// Set by <c>--screenshot &lt;file&gt;</c>: paint the window once, write the frame and quit.
+    /// CI uses it as a smoke test that the UI still renders.
+    /// </summary>
+    public static string? ScreenshotPath { get; private set; }
+
     private Mutex? _instance;
 
     protected override void OnStartup(StartupEventArgs e)
     {
         StartMinimized = e.Args.Any(a => string.Equals(a, "--minimized", StringComparison.OrdinalIgnoreCase));
+
+        for (int i = 0; i < e.Args.Length - 1; i++)
+        {
+            if (string.Equals(e.Args[i], "--screenshot", StringComparison.OrdinalIgnoreCase))
+            {
+                ScreenshotPath = e.Args[i + 1];
+            }
+        }
 
         // A crash in the UI thread must be logged and explained, not silently kill the
         // app while OpenCode keeps talking to a proxy that no longer exists.

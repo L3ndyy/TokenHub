@@ -6,6 +6,15 @@
 #   powershell -ExecutionPolicy Bypass -File installer\build-installer.ps1
 #   powershell -ExecutionPolicy Bypass -File installer\build-installer.ps1 -Version 1.1.2
 #
+# Signing the result is optional and needs a real Authenticode certificate, which is
+# a purchase rather than a code change. Give the build one of these and the payload
+# executables plus the finished setup get signed:
+#   TOKENHUB_SIGN_PFX          path to a .pfx file, with TOKENHUB_SIGN_PASSWORD
+#   TOKENHUB_SIGN_THUMBPRINT   a certificate already in the current user's store
+#   TOKENHUB_SIGN_TIMESTAMP    timestamp server (default: DigiCert)
+# Without them — and on a runner with no certificate — the build stays unsigned and
+# says so, so an ordinary run keeps working.
+#
 # Uses IExpress, which ships with Windows; nothing has to be installed first.
 param(
     [string]$Version = '',
@@ -18,6 +27,55 @@ $root = Split-Path $here -Parent
 
 $appProject = Join-Path $root 'TokenHub\TokenHub.csproj'
 $serviceProject = Join-Path $root 'TokenHub.PoolService\TokenHub.PoolService.csproj'
+
+# ---------------------------------------------------------------- code signing
+
+$signPfx = $env:TOKENHUB_SIGN_PFX
+$signThumbprint = $env:TOKENHUB_SIGN_THUMBPRINT
+$signPassword = $env:TOKENHUB_SIGN_PASSWORD
+$signTimestamp = if ($env:TOKENHUB_SIGN_TIMESTAMP) { $env:TOKENHUB_SIGN_TIMESTAMP } else { 'http://timestamp.digicert.com' }
+
+function Get-SignTool {
+    if ($env:TOKENHUB_SIGNTOOL -and (Test-Path $env:TOKENHUB_SIGNTOOL)) {
+        return $env:TOKENHUB_SIGNTOOL
+    }
+
+    $kits = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'
+    if (Test-Path $kits) {
+        foreach ($kit in (Get-ChildItem $kits -Directory | Sort-Object Name -Descending)) {
+            $candidate = Join-Path $kit.FullName 'x64\signtool.exe'
+            if (Test-Path $candidate) { return $candidate }
+        }
+    }
+
+    return $null
+}
+
+function Invoke-Signature([string[]]$Targets) {
+    if (-not $Targets) { return }
+
+    $signtool = Get-SignTool
+    if (-not $signtool) {
+        Write-Host 'Подпись пропущена: signtool.exe не найден. Он приходит с Windows SDK.'
+        return
+    }
+
+    $signArgs = @('sign', '/fd', 'SHA256', '/tr', $signTimestamp, '/td', 'SHA256')
+    if ($signPfx) {
+        $signArgs += @('/f', $signPfx)
+        if ($signPassword) { $signArgs += @('/p', $signPassword) }
+    } else {
+        $signArgs += @('/sha1', $signThumbprint)
+    }
+
+    foreach ($file in $Targets) {
+        Write-Host ("Подписываю " + (Split-Path $file -Leaf))
+        & $signtool @signArgs $file
+        if ($LASTEXITCODE -ne 0) { throw "Не удалось подписать $file" }
+    }
+}
+
+$signing = [bool]($signPfx -or $signThumbprint)
 
 if (-not $Version) {
     $found = Select-String -LiteralPath $appProject -Pattern '<Version>([^<]+)</Version>'
@@ -49,6 +107,12 @@ dotnet publish $serviceProject -c $Configuration -r win-x64 --self-contained tru
 if ($LASTEXITCODE -ne 0) { throw 'Сборка службы не удалась.' }
 
 Copy-Item (Join-Path $singleFile 'TokenHub.exe') $stage -Force
+
+# Sign the files that will land on the target machine before they are packed: an
+# unsigned inner exe makes the whole package look suspicious once the outer one is signed.
+if ($signing) {
+    Invoke-Signature @((Join-Path $stage 'TokenHub.exe'), (Join-Path $stage 'TokenHub.PoolService.exe'))
+}
 
 # 3. Install scripts. IExpress flattens the archive, so they land next to the
 #    executables; UTF-8 with BOM keeps the Russian text readable in PowerShell.
@@ -143,6 +207,12 @@ for ($attempt = 1; ; $attempt++) {
         if ($attempt -ge 10) { throw }
         Start-Sleep -Seconds 2
     }
+}
+
+if ($signing) {
+    Invoke-Signature @($setup)
+} else {
+    Write-Host 'Установщик собран без подписи. Задайте TOKENHUB_SIGN_PFX или TOKENHUB_SIGN_THUMBPRINT, чтобы подписать.'
 }
 
 $size = [math]::Round((Get-Item $setup).Length / 1MB, 1)

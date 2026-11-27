@@ -61,6 +61,54 @@ jobs:
           if ($answer -notmatch 'skill_search') { throw "skill_search is missing from tools/list" }
           if ($answer -notmatch 'memory_search') { throw "memory_search is missing from tools/list" }
 
+  # The window paints. Renders the real MainWindow to a PNG on a runner and keeps it as an
+  # artifact: a layout that throws or comes out empty fails the run instead of shipping.
+  ui:
+    needs: smoke
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: ${{ runner.os }}-nuget-
+
+      - name: Publish single-file build
+        run: dotnet publish TokenHub\TokenHub.csproj -c Release -p:PublishProfile=SingleFile -o ui
+
+      - name: The window renders itself
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force ui\shots | Out-Null
+          $process = Start-Process -FilePath (Resolve-Path 'ui\TokenHub.exe').Path `
+            -ArgumentList '--screenshot', 'ui\shots\home.png' -PassThru
+          if (-not $process.WaitForExit(120000)) {
+            $process.Kill()
+            throw 'TokenHub did not finish the screenshot in two minutes'
+          }
+          if ($process.ExitCode -ne 0) { throw "Screenshot run failed with exit code $($process.ExitCode)" }
+
+          $shot = 'ui\shots\home.png'
+          if (-not (Test-Path $shot)) { throw 'No screenshot was written' }
+
+          $length = (Get-Item $shot).Length
+          Write-Host "screenshot: $length bytes"
+          if ($length -lt 15000) { throw "The screenshot looks empty: $length bytes" }
+
+      - name: Keep the screenshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: TokenHub-window
+          path: ui/shots/*.png
+
   build:
     needs: smoke
     runs-on: windows-latest

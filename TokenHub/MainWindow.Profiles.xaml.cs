@@ -405,7 +405,6 @@ public partial class MainWindow
             await CheckAllKeysAsync();
         }
 
-        await OfferServiceUpdateAsync();
         await CheckUpdateSilentlyAsync();
     }
 
@@ -463,40 +462,6 @@ public partial class MainWindow
             Status("Не удалось скачать установщик", Kind.Fail);
             MessageBox.Show(this, ex.Message, "Обновление", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
-    }
-
-    /// <summary>
-    /// After the app updates itself, the installed Windows service still runs the old
-    /// binaries. Ask once at start-up instead of leaving a stale proxy behind, and let
-    /// the user decline: the button in "Ключи" does the same thing any time.
-    /// </summary>
-    private async Task OfferServiceUpdateAsync()
-    {
-        if (PoolService.Current is not (PoolService.State.Running or PoolService.State.Stopped))
-        {
-            return;
-        }
-
-        if (!PoolService.PayloadOutdated)
-        {
-            return;
-        }
-
-        var answer = MessageBox.Show(
-            this,
-            "Файлы службы Windows остались от прежней версии приложения." + Environment.NewLine + Environment.NewLine +
-            "Обновить их сейчас? Служба ненадолго остановится и запустится заново, Windows один раз попросит права администратора.",
-            "TokenHub",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Question);
-
-        if (answer != MessageBoxResult.Yes)
-        {
-            Status("Файлы службы можно обновить в разделе «Ключи»", Kind.Unknown);
-            return;
-        }
-
-        await RunServiceAsync(PoolService.Update, "Обновляю файлы службы", PoolService.State.Running);
     }
 
     protected override void OnSourceInitialized(EventArgs e)

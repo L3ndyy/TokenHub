@@ -8,6 +8,7 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using TokenHub.Services;
 
@@ -138,8 +139,17 @@ public partial class MainWindow : Window
             Journal(SettingsStore.LastLoadError, Kind.Fail);
         }
 
+        // CI smoke test: paint once, write the frame to disk and quit, instead of
+        // sitting in the tray forever with nobody to look at it.
+        if (App.ScreenshotPath is { Length: > 0 } shot)
+        {
+            ContentRendered += (_, _) => Dispatcher.BeginInvoke(
+                DispatcherPriority.ContextIdle,
+                new Action(() => CaptureScreenshot(shot)));
+        }
+
         // Item T14: an autostart launch should stay in the tray, not pop up.
-        if (App.StartMinimized || settings.StartMinimized)
+        else if (App.StartMinimized || settings.StartMinimized)
         {
             // Hide() inside Loaded leaves a visible window with nothing painted in
             // it: WPF is still in the middle of showing the window. Wait for the
@@ -149,13 +159,70 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
+    /// Renders the live window into a PNG. Used by <c>--screenshot &lt;file&gt;</c> so CI can
+    /// prove the window still paints after a change instead of only that it compiles.
+    /// </summary>
+    private void CaptureScreenshot(string path)
+    {
+        try
+        {
+            UpdateLayout();
+
+            // The window backdrop is Mica: the desktop draws it, not WPF, so a raw render
+            // comes out washed out. Compose the frame over the theme's own base colour first.
+            var dpi = VisualTreeHelper.GetDpi(this);
+            var area = new Rect(0, 0, ActualWidth, ActualHeight);
+            var backdrop = new SolidColorBrush(Theme.IsDark(App.Settings.Theme)
+                ? Color.FromRgb(0x20, 0x20, 0x24)
+                : Color.FromRgb(0xF3, 0xF3, 0xF3));
+
+            var visual = new DrawingVisual();
+            using (var context = visual.RenderOpen())
+            {
+                context.DrawRectangle(backdrop, null, area);
+                context.DrawRectangle(new VisualBrush(this), null, area);
+            }
+
+            var frame = new RenderTargetBitmap(
+                (int)Math.Ceiling(ActualWidth * dpi.DpiScaleX),
+                (int)Math.Ceiling(ActualHeight * dpi.DpiScaleY),
+                96 * dpi.DpiScaleX,
+                96 * dpi.DpiScaleY,
+                PixelFormats.Pbgra32);
+            frame.Render(visual);
+
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(frame));
+
+            string full = Path.GetFullPath(path);
+            Directory.CreateDirectory(Path.GetDirectoryName(full)!);
+            using (var stream = File.Create(full))
+            {
+                encoder.Save(stream);
+            }
+
+            Console.WriteLine($"Скриншот: {full}");
+        }
+        catch (Exception ex)
+        {
+            EventLog.Write("Скриншот не снят: " + ex);
+            Console.Error.WriteLine(ex.Message);
+            Environment.ExitCode = 2;
+        }
+
+        // Close() would only hide the window into the tray (item T14), so leave for real.
+        Application.Current.Shutdown();
+    }
+
+    /// <summary>
     /// A freshly installed OpenCode has no config at all, so the first launch should end
     /// with a working setup instead of a JSON file the user has to write themselves.
     /// Runs after the window has painted, and only while the wizard has never been seen.
     /// </summary>
     private void OpenWizardIfNeeded()
     {
-        if (App.StartMinimized || App.Settings.StartMinimized)
+        // A screenshot run wants a plain window, not a modal tour on top of it.
+        if (App.StartMinimized || App.Settings.StartMinimized || App.ScreenshotPath is not null)
         {
             return;
         }

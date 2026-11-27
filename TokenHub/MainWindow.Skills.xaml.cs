@@ -262,24 +262,42 @@ public partial class MainWindow
             Visibility = expanded ? Visibility.Visible : Visibility.Collapsed,
         };
 
-        foreach (var skill in items)
+        // Rows are built when the bucket is first opened. The catalogue carries a few
+        // hundred skills and only the open buckets deserve real visuals.
+        bool filled = false;
+        void Fill()
         {
-            body.Children.Add(SkillRow(skill));
+            if (filled)
+            {
+                return;
+            }
+
+            filled = true;
+
+            // A whole bucket in one click: this is the "preset" the section already describes.
+            if (!items.All(skill => Skills.IsInstalled(skill.Name)))
+            {
+                var bulk = new Button
+                {
+                    Content = $"Установить раздел · {items.Count}",
+                    Style = (Style)FindResource("SubtleButton"),
+                    HorizontalAlignment = HorizontalAlignment.Left,
+                    Margin = new Thickness(0, 0, 0, 8),
+                };
+                AutomationProperties.SetName(bulk, "Установить раздел " + group.Name);
+                bulk.Click += (_, _) => InstallSkills(items.Select(skill => skill.Name), group.Name);
+                body.Children.Add(bulk);
+            }
+
+            foreach (var skill in items)
+            {
+                body.Children.Add(SkillRow(skill));
+            }
         }
 
-        // A whole bucket in one click: this is the "preset" the section already describes.
-        if (!items.All(skill => Skills.IsInstalled(skill.Name)))
+        if (expanded)
         {
-            var bulk = new Button
-            {
-                Content = $"Установить раздел · {items.Count}",
-                Style = (Style)FindResource("SubtleButton"),
-                HorizontalAlignment = HorizontalAlignment.Left,
-                Margin = new Thickness(0, 0, 0, 8),
-            };
-            AutomationProperties.SetName(bulk, "Установить раздел " + group.Name);
-            bulk.Click += (_, _) => InstallSkills(items.Select(skill => skill.Name), group.Name);
-            body.Children.Insert(0, bulk);
+            Fill();
         }
 
         var title = new StackPanel();
@@ -324,6 +342,7 @@ public partial class MainWindow
         {
             if (open)
             {
+                Fill();
                 _openSkillGroups.Add(group.Name);
             }
             else
