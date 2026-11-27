@@ -447,6 +447,7 @@ internal static class Program
             CheckHttp("прокси: принимает ключ пула", 200, Send(http, url, "thk_pool_testtoken"), proxy.LastError);
             CheckHttp("прокси: принимает ключ из настроек", 200, Send(http, url, "thk_live_testkey"));
             CheckHttp("прокси: отклоняет чужой ключ", 403, Send(http, url, "thk_live_wrong"));
+            CheckHttp("прокси: health без ключа читается", 200, Send(http, url, null));
             CheckHttp("прокси: отклоняет чужой Host", 403,
                 Send(http, url, "thk_pool_testtoken", host: "evil.example"));
             CheckHttp("прокси: отклоняет чужой Origin", 403,
@@ -454,10 +455,17 @@ internal static class Program
 
             settings.FreeOnly = true;
             string chat = $"http://127.0.0.1:{port}/v1/chat/completions";
+            CheckHttp("прокси: чат без ключа не тратит токены", 403,
+                Post(http, chat, null, "{\"model\":\"deepseek-v4.1-flash:free\"}"));
             CheckHttp("прокси: режим free-only блокирует платную модель", 400,
                 Post(http, chat, "thk_pool_testtoken", "{\"model\":\"deepseek-v4.1-flash\"}"));
             CheckHttp("прокси: режим free-only пропускает :free", 200,
                 Post(http, chat, "thk_pool_testtoken", "{\"model\":\"deepseek-v4.1-flash:free\"}"));
+            CheckHttp("прокси: запрос с Expect: 100-continue проходит", 200,
+                Post(http, chat, "thk_pool_testtoken", "{\"model\":\"deepseek-v4.1-flash:free\"}", expectContinue: true));
+            Check("прокси: Expect не пересылается наверх",
+                upstream.LastHead is not null && !upstream.LastHead.Contains("Expect:", StringComparison.OrdinalIgnoreCase),
+                upstream.LastHead ?? "(нет запроса)");
         }
         catch (Exception ex)
         {
@@ -481,10 +489,13 @@ internal static class Program
     private static void CheckHttp(string name, int expected, int actual, string? detail = null) =>
         Check(name, expected == actual, $"HTTP {actual} (ожидалось {expected}) {detail}");
 
-    private static int Send(HttpClient http, string url, string token, string? host = null, string? origin = null)
+    private static int Send(HttpClient http, string url, string? token, string? host = null, string? origin = null)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.TryAddWithoutValidation("Authorization", "Bearer " + token);
+        if (token is not null)
+        {
+            request.Headers.TryAddWithoutValidation("Authorization", "Bearer " + token);
+        }
         if (host is not null)
         {
             request.Headers.Host = host;
@@ -499,13 +510,21 @@ internal static class Program
         return (int)response.StatusCode;
     }
 
-    private static int Post(HttpClient http, string url, string token, string json)
+    private static int Post(HttpClient http, string url, string? token, string json, bool expectContinue = false)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, url)
         {
             Content = new StringContent(json, Encoding.UTF8, "application/json"),
         };
-        request.Headers.TryAddWithoutValidation("Authorization", "Bearer " + token);
+        if (token is not null)
+        {
+            request.Headers.TryAddWithoutValidation("Authorization", "Bearer " + token);
+        }
+
+        if (expectContinue)
+        {
+            request.Headers.ExpectContinue = true;
+        }
 
         using var response = http.SendAsync(request).GetAwaiter().GetResult();
         return (int)response.StatusCode;
@@ -534,6 +553,9 @@ internal static class Program
 
         public int Port { get; }
 
+        /// <summary>Raw request head seen by the stub, so tests can assert what was forwarded.</summary>
+        public string? LastHead { get; private set; }
+
         private async Task LoopAsync()
         {
             while (true)
@@ -552,7 +574,7 @@ internal static class Program
             }
         }
 
-        private static async Task ServeAsync(TcpClient client)
+        private async Task ServeAsync(TcpClient client)
         {
             using (client)
             {
@@ -578,6 +600,7 @@ internal static class Program
                     }
 
                     string text = head.ToString();
+                    LastHead = text;
                     int split = text.IndexOf("\r\n\r\n", StringComparison.Ordinal) + 4;
                     int contentLength = 0;
                     foreach (string line in text[..split].Split("\r\n"))

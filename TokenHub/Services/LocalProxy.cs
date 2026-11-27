@@ -259,7 +259,7 @@ public sealed class LocalProxy
         // Loopback only, but every local process — and any web page in a browser —
         // can reach that address. A foreign Host or Origin means the request was not
         // meant for us, and a request without the pool credential is refused outright.
-        if (!IsLocalRequest(context) || !IsAuthorized(clientAuth))
+        if (!IsLocalRequest(context) || !IsAuthorized(clientAuth, context.Request.Method, path))
         {
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
             await WriteJsonAsync(context, ErrorJson("forbidden", "Запрос отклонён локальным прокси TokenHub."));
@@ -463,15 +463,15 @@ public sealed class LocalProxy
 
     /// <summary>
     /// Accepts the pool credential written into opencode.json, or one of the pool's own
-    /// keys (older configs still contain a real key). An empty header is allowed so a
-    /// simple local health check keeps working; it can never spend tokens upstream,
-    /// because the proxy only forwards the keys it owns.
+    /// keys (older configs still contain a real key). A request with no credential may
+    /// only read the health endpoints — never start a completion, which would spend tokens.
     /// </summary>
-    private bool IsAuthorized(string authorization)
+    private bool IsAuthorized(string authorization, string method, string path)
     {
         if (string.IsNullOrWhiteSpace(authorization))
         {
-            return true;
+            return HttpMethods.IsGet(method)
+                   && path is "/v1/models" or "/__status" or "/status";
         }
 
         string token = authorization.Trim();
@@ -511,7 +511,9 @@ public sealed class LocalProxy
         || name.Equals("Keep-Alive", StringComparison.OrdinalIgnoreCase)
         || name.Equals("Transfer-Encoding", StringComparison.OrdinalIgnoreCase)
         || name.Equals("Content-Length", StringComparison.OrdinalIgnoreCase)
-        || name.Equals("Accept-Encoding", StringComparison.OrdinalIgnoreCase);
+        || name.Equals("Accept-Encoding", StringComparison.OrdinalIgnoreCase)
+        // A proxy answers Expect itself; forwarding 100-continue breaks the region proxy.
+        || name.Equals("Expect", StringComparison.OrdinalIgnoreCase);
 
     private async Task RelayAsync(
         HttpContext context,

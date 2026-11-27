@@ -50,6 +50,9 @@ public partial class FirstRunWindow : Window
         }
     }
 
+    private void OpenTokenHarbor_Click(object sender, RoutedEventArgs e) =>
+        Launcher.OpenUrl("https://tokenharbor.ai");
+
     private void Later_Click(object sender, RoutedEventArgs e)
     {
         // Remember the "no", so the wizard does not open on every launch.

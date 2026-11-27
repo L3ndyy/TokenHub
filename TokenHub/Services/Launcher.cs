@@ -102,6 +102,12 @@ public static class Launcher
         Process.Start(new ProcessStartInfo { FileName = path, UseShellExecute = true });
     }
 
+    /// <summary>Opens an https:// address in the user's browser.</summary>
+    public static void OpenUrl(string url)
+    {
+        Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true });
+    }
+
     public static void OpenTerminal(string workingDirectory)
     {
         Directory.CreateDirectory(workingDirectory);

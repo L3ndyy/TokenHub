@@ -480,8 +480,13 @@
                                                 Margin="8,0,0,0" Click="AddKey_Click"
                                                 AutomationProperties.Name="Добавить ключ в пул" />
                                     </Grid>
-                                    <TextBlock Style="{StaticResource Caption}" Margin="0,8,0,0"
-                                               Text="Ключ вида thk_live_… из личного кабинета tokenharbor.ai. После добавления он сразу проверяется." />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,8,0,0" TextWrapping="Wrap">
+                                        Ключ вида thk_live_… — карточка Universal Key на
+                                        <Hyperlink Click="OpenTokenHarbor_Click"
+                                                   Foreground="{DynamicResource Br.Accent}">tokenharbor.ai</Hyperlink>.
+                                        Ключ показывается один раз, поэтому скопируйте его сразу.
+                                        После добавления он проверяется автоматически.
+                                    </TextBlock>
                                 </StackPanel>
                             </Border>
 

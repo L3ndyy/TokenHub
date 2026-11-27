@@ -25,8 +25,14 @@
                 <Border Style="{StaticResource Card}">
                     <StackPanel>
                         <TextBlock Text="Ключ Token Harbor" Style="{StaticResource CardTitle}" />
-                        <TextBlock Style="{StaticResource Caption}" Margin="0,8,0,0" TextWrapping="Wrap"
-                                   Text="Вставьте ключ вида thk_live_... из личного кабинета tokenharbor.ai. Остальные ключи можно добавить позже в разделе «Ключи»." />
+                        <TextBlock Style="{StaticResource Caption}" Margin="0,8,0,0" TextWrapping="Wrap">
+                            Вставьте ключ вида thk_live_… — он показывается один раз на
+                            <Hyperlink Click="OpenTokenHarbor_Click"
+                                       Foreground="{DynamicResource Br.Accent}">tokenharbor.ai</Hyperlink>
+                            в карточке Universal Key. Аккаунт бесплатный, карта не нужна; скопируйте
+                            ключ сразу — повторно его не показывают. Остальные ключи можно добавить
+                            позже в разделе «Ключи».
+                        </TextBlock>
                         <TextBox x:Name="TxtKey" Style="{StaticResource Field}" Margin="0,12,0,0"
                                  AutomationProperties.Name="Ключ Token Harbor" />
                     </StackPanel>

@@ -177,6 +177,9 @@ public partial class MainWindow : Window
     private void ShowIntro_Click(object sender, RoutedEventArgs e) =>
         ShowIntro(thenWizard: false);
 
+    private void OpenTokenHarbor_Click(object sender, RoutedEventArgs e) =>
+        Launcher.OpenUrl("https://tokenharbor.ai");
+
     private void ShowIntro(bool thenWizard)
     {
         var intro = new IntroWindow { Owner = this };
