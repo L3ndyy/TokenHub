@@ -20,6 +20,7 @@
     <Compile Include="..\TokenHub\Services\UsageStore.cs" Link="UsageStore.cs" />
     <Compile Include="..\TokenHub\Services\MemoryStore.cs" Link="MemoryStore.cs" />
     <Compile Include="..\TokenHub\Services\Skills.cs" Link="Skills.cs" />
+    <Compile Include="..\TokenHub\Services\Format.cs" Link="Format.cs" />
     <Compile Include="..\TokenHub\Services\OpenCodeConfig.cs" Link="OpenCodeConfig.cs" />
     <Compile Include="..\TokenHub\Services\StatsStore.cs" Link="StatsStore.cs" />
     <Compile Include="..\TokenHub\Services\LocalProxy.cs" Link="LocalProxy.cs" />

@@ -349,7 +349,12 @@ public partial class MainWindow : Window
 
         // One number first: what the week would have cost on the paid equivalent of the
         // current model. It is an estimate, so the caption says so.
-        var week = UsageStore.Recent(7);
+        // Two weeks: the newest seven days are the week on screen, the older seven are the
+        // yardstick for the "vs last week" note under the big number.
+        var fortnight = UsageStore.Recent(14);
+        int split = Math.Max(0, fortnight.Count - 7);
+        var before = fortnight.Take(split).ToList();
+        var week = fortnight.Skip(split).ToList();
         long prompt = week.Sum(d => d.Prompt);
         long completion = week.Sum(d => d.Completion);
         long tokens = prompt + completion;
@@ -359,6 +364,15 @@ public partial class MainWindow : Window
         if (TxtSaved is not null)
         {
             TxtSaved.Text = Format.Rub(Pricing.Rub(prompt, completion, App.Settings.DefaultModel));
+        }
+
+        if (TxtSavedDelta is not null)
+        {
+            long beforeTokens = before.Sum(d => d.Prompt + d.Completion);
+            string? delta = Format.WeekDelta(tokens, beforeTokens);
+            TxtSavedDelta.Text = delta ?? string.Empty;
+            TxtSavedDelta.Visibility = delta is null ? Visibility.Collapsed : Visibility.Visible;
+            TxtSavedDelta.Foreground = ResBrush(tokens >= beforeTokens ? "Br.Success" : "Br.Muted");
         }
 
         if (TxtStatRequests is not null)
@@ -437,6 +451,7 @@ public partial class MainWindow : Window
         }
 
         const double labelHeight = 16;
+        const double peakLabelHeight = 14;
         double plotHeight = height - labelHeight;
         double slot = width / week.Count;
         double barWidth = Math.Max(4, Math.Min(26, slot - 8));
@@ -445,12 +460,45 @@ public partial class MainWindow : Window
         var idle = ResBrush("Br.Muted");
         var labelBrush = ResBrush("Br.TextSecondary");
 
+        // A hairline under the bars: the chart no longer floats in its card.
+        var baseline = new System.Windows.Shapes.Rectangle
+        {
+            Width = width,
+            Height = 1,
+            Fill = ResBrush("Br.ControlBorder"),
+        };
+        Canvas.SetLeft(baseline, 0);
+        Canvas.SetTop(baseline, plotHeight);
+        HistoryCanvas.Children.Add(baseline);
+
+        // The week's average as a dashed line, so a bar is read against something.
+        double mean = week.Average(d => (double)(d.Prompt + d.Completion));
+        double plotRange = plotHeight - 8 - peakLabelHeight;
+        if (mean > 0)
+        {
+            double meanY = plotHeight - Math.Min(plotRange, mean / peak * plotRange);
+            HistoryCanvas.Children.Add(new System.Windows.Shapes.Line
+            {
+                X1 = 0,
+                X2 = width,
+                Y1 = meanY,
+                Y2 = meanY,
+                Stroke = labelBrush,
+                StrokeThickness = 1,
+                StrokeDashArray = new DoubleCollection { 3, 3 },
+                Opacity = 0.45,
+                ToolTip = $"Среднее за неделю: {Format.Compact((long)mean)} токенов в день",
+            });
+        }
+
         for (int i = 0; i < week.Count; i++)
         {
             var day = week[i];
             long value = day.Prompt + day.Completion;
             bool isToday = day.Day.Date == DateTime.Today;
-            double barHeight = value <= 0 ? 2 : Math.Max(3, value / peak * (plotHeight - 8));
+            double barHeight = value <= 0
+                ? 2
+                : Math.Max(3, value / peak * plotRange);
             double x = slot * i + (slot - barWidth) / 2;
 
             var bar = new System.Windows.Shapes.Rectangle
@@ -468,6 +516,22 @@ public partial class MainWindow : Window
             Canvas.SetLeft(bar, x);
             Canvas.SetTop(bar, plotHeight - barHeight);
             HistoryCanvas.Children.Add(bar);
+
+            // Name the tallest day: the one point that matters should not need a hover.
+            if (value > 0 && value == peak)
+            {
+                var peakLabel = new TextBlock
+                {
+                    Text = Format.Compact(value),
+                    FontSize = 10,
+                    Foreground = accent,
+                    Width = slot,
+                    TextAlignment = TextAlignment.Center,
+                };
+                Canvas.SetLeft(peakLabel, slot * i);
+                Canvas.SetTop(peakLabel, Math.Max(0, plotHeight - barHeight - peakLabelHeight));
+                HistoryCanvas.Children.Add(peakLabel);
+            }
 
             var label = new TextBlock
             {

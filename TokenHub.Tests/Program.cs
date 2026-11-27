@@ -27,6 +27,7 @@ internal static class Program
         UsageScannerTests();
         UsageStoreTests();
         MemoryStoreTests();
+        FormatTests();
         SkillsTests();
         OpenCodeConfigTests();
         DpapiTests();
@@ -500,6 +501,16 @@ internal static class Program
                 // A leftover temp folder must not fail the suite.
             }
         }
+    }
+
+    private static void FormatTests()
+    {
+        Console.WriteLine("Format");
+        Check("неделя выросла: +22 %", Format.WeekDelta(1220, 1000) == "+22 % к прошлой неделе", Format.WeekDelta(1220, 1000));
+        Check("неделя упала: -38 %", Format.WeekDelta(620, 1000) == "-38 % к прошлой неделе", Format.WeekDelta(620, 1000));
+        Check("ровно столько же: 0 %", Format.WeekDelta(1000, 1000) == "0 % к прошлой неделе", Format.WeekDelta(1000, 1000));
+        Check("не с чем сравнить — null", Format.WeekDelta(500, 0) is null, Format.WeekDelta(500, 0));
+        Check("нет данных за неделю — null", Format.WeekDelta(0, 500) is null, Format.WeekDelta(0, 500));
     }
 
     private static void AddEntry(ZipArchive archive, string name, string text)

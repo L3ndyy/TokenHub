@@ -59,6 +59,21 @@ public static class Format
         return (value / 1_000_000_000.0).ToString("N2", Ru) + " млрд";
     }
 
+    /// <summary>
+    /// "+18 % к прошлой неделе" — or null when there is nothing to compare against, so the
+    /// dashboard shows no note at all instead of a meaningless zero.
+    /// </summary>
+    public static string? WeekDelta(long current, long previous)
+    {
+        if (current <= 0 || previous <= 0)
+        {
+            return null;
+        }
+
+        double change = (current - previous) * 100.0 / previous;
+        return change.ToString("+0;-0;0", Ru) + " % к прошлой неделе";
+    }
+
     /// <summary>Russian plural for a small counter: 1 запрос, 2 запроса, 5 запросов.</summary>
     public static string Plural(int count, string one, string few, string many)
     {
