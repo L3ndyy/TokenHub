@@ -77,6 +77,15 @@ public sealed class AppSettings
     /// </summary>
     public List<ApiKeyEntry> Keys { get; set; } = new();
 
+    /// <summary>Per-folder model overrides; applied by writing model into the project's own opencode.json.</summary>
+    public List<ProjectProfile> Profiles { get; set; } = new();
+
+    /// <summary>Skill names the user starred, so the catalog can be filtered down to them.</summary>
+    public List<string> FavoriteSkills { get; set; } = new();
+
+    /// <summary>Tighter spacing in the window: smaller nav rows and card margins.</summary>
+    public bool CompactMode { get; set; }
+
     /// <summary>When true OpenCode talks to the local pool proxy instead of the Vercel one.</summary>
     public bool UsePool { get; set; }
 
@@ -277,4 +286,11 @@ public static class SettingsStore
             EventLog.Write("Не удалось сохранить настройки: " + ex.Message);
         }
     }
+}
+
+/// <summary>A folder that should use a different model than the global default.</summary>
+public sealed class ProjectProfile
+{
+    public string Path { get; set; } = string.Empty;
+    public string Model { get; set; } = string.Empty;
 }

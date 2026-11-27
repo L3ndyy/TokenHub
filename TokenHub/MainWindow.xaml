@@ -83,7 +83,7 @@
                         <Border.Background>
                             <LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
                                 <GradientStop Color="#FFFFFFFF" Offset="0" />
-                                <GradientStop Color="#FFE9EEFF" Offset="1" />
+                                <GradientStop x:Name="LogoStop" Color="#FFE9EEFF" Offset="1" />
                             </LinearGradientBrush>
                         </Border.Background>
                         <TextBlock Text="TH" FontSize="10" FontWeight="Bold" Foreground="#FF3858F5"
@@ -114,7 +114,7 @@
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
 
-                <StackPanel Grid.Column="0" Margin="10,6,6,10">
+                <StackPanel x:Name="NavRail" Grid.Column="0" Margin="10,6,6,10">
                     <RadioButton x:Name="NavHome" GroupName="nav" Style="{StaticResource NavItem}"
                                  IsChecked="True" Tag="home" Checked="Nav_Checked"
                                  AutomationProperties.Name="Главная">
@@ -157,6 +157,15 @@
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE8F1;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14" VerticalAlignment="Center" />
                             <TextBlock Text="Скиллы" Margin="12,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </RadioButton>
+
+                    <RadioButton x:Name="NavMemory" GroupName="nav" Style="{StaticResource NavItem}"
+                                 Tag="memory" Checked="Nav_Checked"
+                                 AutomationProperties.Name="Память">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE82F;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14" VerticalAlignment="Center" />
+                            <TextBlock Text="Память" Margin="12,0,0,0" VerticalAlignment="Center" />
                         </StackPanel>
                     </RadioButton>
 
@@ -245,15 +254,50 @@
                                                 Content="Сбросить" Click="ResetStats_Click" VerticalAlignment="Center" />
                                         <TextBlock Text="Статистика пула" Style="{StaticResource CardTitle}" />
                                     </DockPanel>
-                                    <TextBlock x:Name="TxtPoolStats" Style="{StaticResource Mono}" Margin="0,12,0,0" Text="Нет данных." />
-                                    <Border Height="42" Margin="0,12,0,0" CornerRadius="6"
+
+                                    <StackPanel Margin="0,10,0,0">
+                                        <TextBlock x:Name="TxtSaved" Text="0 ₽" FontSize="34" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource Br.Text}"
+                                                   Typography.NumeralAlignment="Tabular" />
+                                        <TextBlock Text="сэкономлено за неделю" Style="{StaticResource Caption}"
+                                                   Margin="0,2,0,0" />
+                                    </StackPanel>
+
+                                    <UniformGrid Columns="3" Margin="0,16,0,0">
+                                        <StackPanel>
+                                            <TextBlock x:Name="TxtStatRequests" Text="0" FontSize="20" FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource Br.Text}"
+                                                       Typography.NumeralAlignment="Tabular" />
+                                            <TextBlock x:Name="TxtStatRequestsLabel" Text="запросов за неделю"
+                                                       Style="{StaticResource Caption}" Margin="0,2,0,0" />
+                                        </StackPanel>
+                                        <StackPanel>
+                                            <TextBlock x:Name="TxtStatTokens" Text="0" FontSize="20" FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource Br.Text}"
+                                                       Typography.NumeralAlignment="Tabular" />
+                                            <TextBlock x:Name="TxtStatTokensLabel" Text="токенов за неделю"
+                                                       Style="{StaticResource Caption}" Margin="0,2,0,0" />
+                                        </StackPanel>
+                                        <StackPanel>
+                                            <TextBlock x:Name="TxtStatSwitches" Text="0" FontSize="20" FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource Br.Text}"
+                                                       Typography.NumeralAlignment="Tabular" />
+                                            <TextBlock x:Name="TxtStatSwitchesLabel" Text="переключений"
+                                                       Style="{StaticResource Caption}" Margin="0,2,0,0" />
+                                        </StackPanel>
+                                    </UniformGrid>
+
+                                    <Border Height="96" Margin="0,16,0,0" CornerRadius="6"
                                             Background="{DynamicResource Br.Control}"
                                             BorderBrush="{DynamicResource Br.ControlBorder}" BorderThickness="1"
-                                            AutomationProperties.Name="График запросов">
-                                        <Canvas x:Name="SparkCanvas" Height="40" Margin="4,0" ClipToBounds="True" />
+                                            AutomationProperties.Name="График токенов по дням">
+                                        <Canvas x:Name="HistoryCanvas" Height="92" Margin="8,4" ClipToBounds="True" />
                                     </Border>
-                                    <TextBlock Style="{StaticResource Caption}" Margin="0,6,0,0"
-                                               Text="График обновляется каждые 2 секунды, пока окно открыто." />
+
+                                    <TextBlock x:Name="TxtPoolStats" Style="{StaticResource Mono}" Margin="0,10,0,0"
+                                               Text="Нет данных." TextWrapping="Wrap" />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,6,0,0" TextWrapping="Wrap"
+                                               Text="Оценка: сколько эта работа стоила бы на платной модели. График обновляется каждые 2 секунды, пока окно открыто." />
                                 </StackPanel>
                             </Border>
 
@@ -601,6 +645,9 @@
                                         <Button Style="{StaticResource AccentButton}" Content="Установить все"
                                                 Margin="0,0,8,8" Click="InstallAllSkills_Click"
                                                 AutomationProperties.Name="Установить все скиллы" />
+                                        <Button Style="{StaticResource SubtleButton}" Content="Обновить установленные"
+                                                Margin="0,0,8,8" Click="UpdateInstalledSkills_Click"
+                                                AutomationProperties.Name="Обновить установленные скиллы" />
                                         <Button Style="{StaticResource SubtleButton}" Content="Открыть папку"
                                                 Margin="0,0,8,8" Click="OpenSkillsFolder_Click" />
                                     </WrapPanel>
@@ -623,11 +670,78 @@
                                                  Style="{StaticResource Field}" TextChanged="SkillSearch_Changed"
                                                  AutomationProperties.Name="Поиск по скиллам" />
                                     </Grid>
+                                    <DockPanel Margin="0,12,0,0">
+                                        <ToggleButton x:Name="TglSkillFav" DockPanel.Dock="Right"
+                                                      Style="{StaticResource Switch}" VerticalAlignment="Center"
+                                                      Checked="SkillFav_Changed" Unchecked="SkillFav_Changed"
+                                                      AutomationProperties.Name="Показывать только избранные скиллы" />
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="Только избранные" Style="{StaticResource CardTitle}" />
+                                            <TextBlock Style="{StaticResource Caption}" Margin="0,2,12,0"
+                                                       Text="Звёздочка у названия скилла добавляет его сюда" />
+                                        </StackPanel>
+                                    </DockPanel>
                                     <ScrollViewer MaxHeight="560" VerticalScrollBarVisibility="Auto" Margin="0,14,0,4">
                                         <StackPanel x:Name="SkillsGroups" Margin="0,0,6,0" />
                                     </ScrollViewer>
                                     <TextBlock x:Name="TxtSkillsHint" Style="{StaticResource Caption}" Margin="0,12,0,0"
                                                Text="" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- ============ MEMORY ============ -->
+                        <StackPanel x:Name="PanelMemory" Margin="18,10,0,0" Visibility="Collapsed">
+                            <TextBlock Text="Память" Style="{StaticResource Title}" />
+                            <TextBlock Style="{StaticResource Subtitle}"
+                                       Text="Что ассистент уже знает о ваших проектах" />
+
+                            <Border Style="{StaticResource Card}" Margin="0,18,0,0">
+                                <StackPanel>
+                                    <DockPanel>
+                                        <Ellipse x:Name="DotMemory" DockPanel.Dock="Right" Width="10" Height="10"
+                                                 Fill="{DynamicResource Br.Muted}" VerticalAlignment="Center" />
+                                        <TextBlock Text="Долговременная память" Style="{StaticResource CardTitle}" />
+                                    </DockPanel>
+                                    <TextBlock x:Name="TxtMemoryState" Style="{StaticResource Body}" Margin="0,8,0,0"
+                                               Text="Проверка..." TextWrapping="Wrap" />
+                                    <TextBlock x:Name="TxtMemoryStats" Style="{StaticResource Caption}" Margin="0,6,0,0"
+                                               Text="" TextWrapping="Wrap" />
+                                    <TextBox x:Name="TxtMemoryNew" Style="{StaticResource Field}" Margin="0,12,0,0"
+                                             AcceptsReturn="True" TextWrapping="Wrap" MinHeight="54" MaxHeight="120"
+                                             VerticalScrollBarVisibility="Auto"
+                                             AutomationProperties.Name="Новая заметка" />
+                                    <WrapPanel Margin="0,8,0,0">
+                                        <Button Style="{StaticResource AccentButton}" Content="Сохранить"
+                                                Margin="0,0,8,8" Click="SaveMemory_Click" />
+                                        <Button Style="{StaticResource SubtleButton}" Content="Открыть файл"
+                                                Margin="0,0,8,8" Click="OpenMemoryFile_Click" />
+                                        <Button Style="{StaticResource SubtleButton}" Content="Открыть папку"
+                                                Margin="0,0,8,8" Click="OpenMemoryFolder_Click" />
+                                        <Button Style="{StaticResource SubtleButton}" Content="Очистить"
+                                                Margin="0,0,8,8" Click="ClearMemory_Click"
+                                                AutomationProperties.Name="Очистить память" />
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource Card}" Margin="0,12,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="Поиск по заметкам" Style="{StaticResource Caption}"
+                                               Margin="0,0,0,6" />
+                                    <TextBox x:Name="TxtMemorySearch" Style="{StaticResource Field}"
+                                             TextChanged="MemorySearch_Changed"
+                                             AutomationProperties.Name="Поиск по памяти" />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,6,0,0" TextWrapping="Wrap"
+                                               Text="Ассистент сам вызывает memory_search и memory_save через MCP. Здесь видно всё, что он сохранил." />
+
+                                    <ScrollViewer MaxHeight="520" VerticalScrollBarVisibility="Auto" Margin="0,14,0,4">
+                                        <StackPanel x:Name="MemoryList" Margin="0,0,6,0" />
+                                    </ScrollViewer>
+
+                                    <TextBlock x:Name="TxtMemoryEmpty" Style="{StaticResource Body}" Margin="0,10,0,0"
+                                               Text="Пока пусто — память наполнится сама." TextWrapping="Wrap"
+                                               Visibility="Collapsed" />
                                 </StackPanel>
                             </Border>
                         </StackPanel>
@@ -663,6 +777,17 @@
                                         <Button Style="{StaticResource Swatch}" Background="#FFF43F5E" Tag="#FFF43F5E" Click="Accent_Click" Margin="0,0,8,0" ToolTip="Розовый" />
                                         <Button Style="{StaticResource Swatch}" Background="#FFF59E0B" Tag="#FFF59E0B" Click="Accent_Click" Margin="0,0,8,0" ToolTip="Янтарный" />
                                     </WrapPanel>
+
+                                    <DockPanel Margin="0,18,0,0">
+                                        <ToggleButton x:Name="TglCompact" Style="{StaticResource Switch}" DockPanel.Dock="Right"
+                                                      VerticalAlignment="Center" Checked="Compact_Changed" Unchecked="Compact_Changed"
+                                                      AutomationProperties.Name="Компактный режим" />
+                                        <StackPanel>
+                                            <TextBlock Text="Компактный режим" Style="{StaticResource CardTitle}" />
+                                            <TextBlock Style="{StaticResource Caption}"
+                                                       Text="Меньше отступов — больше помещается на экране" />
+                                        </StackPanel>
+                                    </DockPanel>
                                 </StackPanel>
                             </Border>
 
@@ -705,6 +830,26 @@
                                                        Text="Прокси не пропустит платную модель, даже если её запросит OpenCode." />
                                         </StackPanel>
                                     </DockPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource Card}" Margin="0,12,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="Профили проектов" Style="{StaticResource CardTitle}" />
+                                    <TextBlock Style="{StaticResource Caption}" Margin="0,8,0,0"
+                                               Text="Своя модель для конкретной папки: «Применить» пишет model в opencode.json внутри проекта и не трогает остальные настройки." />
+                                    <Grid Margin="0,12,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <ComboBox x:Name="CmbProfileModel" Grid.Column="0" Style="{StaticResource Picker}"
+                                                  AutomationProperties.Name="Модель профиля" />
+                                        <Button Grid.Column="1" Style="{StaticResource SubtleButton}"
+                                                Content="Добавить папку" Margin="8,0,0,0"
+                                                Click="AddProfile_Click" />
+                                    </Grid>
+                                    <StackPanel x:Name="ProfilesList" Margin="0,6,0,0" />
                                 </StackPanel>
                             </Border>
 

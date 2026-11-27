@@ -25,6 +25,7 @@ internal static class Program
         PreserveHealthTests();
         UsageScannerTests();
         UsageStoreTests();
+        MemoryStoreTests();
         OpenCodeConfigTests();
         DpapiTests();
         SettingsRoundTripTests();
@@ -313,6 +314,58 @@ internal static class Program
         finally
         {
             UsageStore.Configure(SettingsStore.FilePath);
+            try
+            {
+                Directory.Delete(folder, recursive: true);
+            }
+            catch
+            {
+                // Temp folder is harmless.
+            }
+        }
+    }
+
+    /// <summary>Memory keeps facts, deduplicates them and finds them by word.</summary>
+    private static void MemoryStoreTests()
+    {
+        string folder = Path.Combine(Path.GetTempPath(), "th-memory-" + Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            MemoryStore.Configure(Path.Combine(folder, "settings.json"));
+            MemoryStore.Clear();
+
+            var first = MemoryStore.Add("Прокси держит порт 8477", "fact", "/tmp/project", new[] { "proxy" });
+            MemoryStore.Add("Сборка падает на кириллице в консоли", "lesson", "/tmp/project", new[] { "build" });
+
+            Check("память: заметка сохраняется", MemoryStore.Count == 2, MemoryStore.Count);
+            Check(
+                "память: поиск по слову",
+                MemoryStore.Search("порт", 5, "/tmp/project").Any(e => e.Id == first.Id),
+                MemoryStore.Search("порт", 5, "/tmp/project").Count);
+
+            var duplicate = MemoryStore.Add("Прокси держит порт 8477", "fact", "/tmp/project");
+            Check("память: дубликат не плодит записи", MemoryStore.Count == 2 && duplicate.Id == first.Id,
+                MemoryStore.Count);
+
+            Check(
+                "память: поиск без совпадений пуст",
+                MemoryStore.Search("облако", 5, "/tmp/project").Count == 0,
+                MemoryStore.Search("облако", 5, "/tmp/project").Count);
+
+            Check("память: удаление по id", MemoryStore.Remove(first.Id) && MemoryStore.Count == 1,
+                MemoryStore.Count);
+
+            MemoryStore.Clear();
+            Check("память: очистка", MemoryStore.Count == 0, MemoryStore.Count);
+        }
+        catch (Exception ex)
+        {
+            Check("память: файл заметок", false, ex.Message);
+        }
+        finally
+        {
+            MemoryStore.Configure(SettingsStore.FilePath);
             try
             {
                 Directory.Delete(folder, recursive: true);

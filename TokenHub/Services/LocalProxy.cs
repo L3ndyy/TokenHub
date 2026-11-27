@@ -359,6 +359,14 @@ public sealed class LocalProxy
                             $"Ошибка ответа: {Dpapi.Mask(key.Key)} · {model ?? "модель не указана"} · HTTP {status}");
                     }
 
+                    // A model-level error (unknown model, bad request) used to only show up in
+                    // the OpenCode console. One toast, throttled, is enough to notice it.
+                    string faultReason = ShortReason(text);
+                    RaiseThrottled(
+                        "TokenHub: ошибка запроса",
+                        $"{model ?? "модель не указана"} · HTTP {status}"
+                        + (faultReason.Length > 0 ? " · " + faultReason : string.Empty));
+
                     await RelayAsync(context, response, text, cancelled);
                     return;
                 }
@@ -861,6 +869,28 @@ public sealed class LocalProxy
         }
 
         _save(Settings);
+    }
+
+    private string _lastNotice = string.Empty;
+    private long _lastNoticeAt;
+
+    /// <summary>Same notice at most once per window, so a repeating error is not a toast storm.</summary>
+    private void RaiseThrottled(string title, string text, int seconds = 90)
+    {
+        long now = Environment.TickCount64;
+        lock (_gate)
+        {
+            if (string.Equals(text, _lastNotice, StringComparison.Ordinal)
+                && now - _lastNoticeAt < seconds * 1000L)
+            {
+                return;
+            }
+
+            _lastNotice = text;
+            _lastNoticeAt = now;
+        }
+
+        Raise(title, text);
     }
 
     private void Raise(string title, string text)

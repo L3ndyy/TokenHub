@@ -1,3 +1,4 @@
+using System.IO;
 using System.Windows;
 using TokenHub.Services;
 
@@ -67,6 +68,7 @@ public partial class App : Application
             (Settings.UsePool ? "локальный пул" : "прокси напрямую"));
 
         ImportExistingKey();
+        TryWireMemory();
 
         LocalProxy.Instance.Configure(() => Settings, SettingsStore.Save);
         _ = StartPoolAsync();
@@ -96,6 +98,33 @@ public partial class App : Application
         }
 
         base.OnExit(e);
+    }
+
+    /// <summary>
+    /// Points OpenCode at the memory server that lives inside this exe. Silent on
+    /// purpose: a missing config or a locked file must not block startup.
+    /// </summary>
+    public static void TryWireMemory()
+    {
+        try
+        {
+            if (!OpenCodeConfig.Exists)
+            {
+                return;
+            }
+
+            string exe = Environment.ProcessPath
+                         ?? System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName
+                         ?? string.Empty;
+
+            OpenCodeConfig.EnsureMemory(
+                exe,
+                Path.Combine(SettingsStore.Directory, "memory-guide.md"));
+        }
+        catch
+        {
+            // Memory is optional; the rest of the app works without it.
+        }
     }
 
     /// <summary>Takes over a settings object loaded from a backup file (item T10).</summary>

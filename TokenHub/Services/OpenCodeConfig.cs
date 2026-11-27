@@ -30,6 +30,19 @@ public static class OpenCodeConfig
     /// <summary>True when OpenCode has never been pointed at Token Harbor, or has no config at all.</summary>
     public static bool NeedsSetup => GetBaseUrl() is null;
 
+    /// <summary>True when opencode.json already points at the built-in memory server.</summary>
+    public static bool HasMemory()
+    {
+        try
+        {
+            return LoadNode(FilePath)?["mcp"]?["tokenhub-memory"] is JsonObject;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     public static string? GetBaseUrl()
     {
         try
@@ -179,6 +192,95 @@ public static class OpenCodeConfig
     /// <summary>Model ids the provider block advertises, without the provider prefix.</summary>
     public static IReadOnlyList<string> KnownModels() =>
         DefaultModels().Select(pair => pair.Key).ToList();
+
+    /// <summary>
+    /// Registers the built-in memory MCP server and the short usage guide in opencode.json.
+    /// Returns true when the file already advertised exactly this command.
+    /// </summary>
+    public static bool EnsureMemory(string exePath, string guidePath)
+    {
+        if (!File.Exists(FilePath) || string.IsNullOrWhiteSpace(exePath))
+        {
+            return false;
+        }
+
+        JsonNode? node;
+        try
+        {
+            node = LoadNode(FilePath);
+        }
+        catch
+        {
+            return false;
+        }
+
+        if (node is not JsonObject root)
+        {
+            return false;
+        }
+
+        var mcp = root["mcp"] as JsonObject ?? new JsonObject();
+        root["mcp"] = mcp;
+
+        string? current = (root["mcp"]?["tokenhub-memory"]?["command"] as JsonArray)?.FirstOrDefault()?.GetValue<string>();
+        bool sameCommand = string.Equals(current, exePath, StringComparison.OrdinalIgnoreCase)
+                           && (root["mcp"]?["tokenhub-memory"]?["command"] as JsonArray)?.Count == 2;
+
+        var instructions = root["instructions"] as JsonArray ?? new JsonArray();
+        root["instructions"] = instructions;
+
+        bool hasGuide = !string.IsNullOrWhiteSpace(guidePath)
+                        && instructions.Any(n => string.Equals(n?.GetValue<string>(), guidePath, StringComparison.OrdinalIgnoreCase));
+
+        if (sameCommand && hasGuide)
+        {
+            return true;
+        }
+
+        mcp["tokenhub-memory"] = new JsonObject
+        {
+            ["type"] = "local",
+            ["command"] = new JsonArray(exePath, "--mcp-memory"),
+            ["enabled"] = true,
+        };
+
+        if (!string.IsNullOrWhiteSpace(guidePath) && !hasGuide)
+        {
+            WriteGuide(guidePath);
+            instructions.Add(guidePath);
+        }
+
+        Backup();
+        File.WriteAllText(FilePath, root.ToJsonString(WriteOptions));
+        return false;
+    }
+
+    private static void WriteGuide(string path)
+    {
+        const string guide =
+            "# TokenHub Memory\n\n" +
+            "У тебя есть долговременная память проекта через MCP-сервер `tokenhub-memory`.\n\n" +
+            "- Нужен контекст, история решения или имена файлов — вызови `memory_search` до чтения кода.\n" +
+            "- Решил задачу, разобрался в причине бага или выбрал подход — сохрани короткий урок через `memory_save` с `kind=\"lesson\"`.\n" +
+            "- Факты о проекте сохраняй с `kind=\"fact\"`, решения — с `kind=\"decision\"`.\n" +
+            "- Не сохраняй секреты, ключи и содержимое `.env`.\n" +
+            "- Одна заметка — одна мысль; не дублируй уже сохранённое.\n";
+
+        try
+        {
+            string folder = Path.GetDirectoryName(path) ?? string.Empty;
+            if (!string.IsNullOrEmpty(folder))
+            {
+                Directory.CreateDirectory(folder);
+            }
+
+            File.WriteAllText(path, guide);
+        }
+        catch
+        {
+            // A missing guide only makes the memory less discoverable, not broken.
+        }
+    }
 
     public static string Backup()
     {

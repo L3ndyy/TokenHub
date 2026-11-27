@@ -32,9 +32,9 @@ public partial class MainWindow : Window
     private string? _dragKeyId;
     private Point _dragStart;
     private string _lastEvent = string.Empty;
-    private readonly List<long> _samples = new();
-    private DispatcherTimer? _liveTimer;
     private long _serviceRequests;
+    private long _serviceFailovers;
+    private DispatcherTimer? _liveTimer;
     private readonly Dictionary<string, (int Requests, int Failures, long AvgMs)> _serviceKeyStats = new();
     private int _skillsShown;
     private readonly HashSet<string> _openSkillGroups = new(StringComparer.Ordinal);
@@ -95,11 +95,18 @@ public partial class MainWindow : Window
         SelectCombo(CmbStrategy, settings.KeyStrategy);
         SelectCombo(CmbSort, settings.KeysSort);
 
+        FillModels(settings.DefaultModel);
+        TglFreeOnly.IsChecked = settings.FreeOnly;
+
         ThemeSystem.IsChecked = settings.Theme == "system";
         ThemeDark.IsChecked = settings.Theme == "dark";
         ThemeLight.IsChecked = settings.Theme == "light";
 
         MarkAccent();
+
+        StartLogoBreath();
+
+        ApplyCompactMode();
 
         SettingsPaths.Text =
             $"TokenHub:   {SettingsStore.FilePath}{Environment.NewLine}" +
@@ -110,6 +117,7 @@ public partial class MainWindow : Window
 
         RefreshLocalState();
         RefreshServiceState();
+        RenderProfiles();
         RefreshStats();
         StartLiveStats();
         _ = RefreshServiceStatusAsync();
@@ -312,17 +320,80 @@ public partial class MainWindow : Window
 
     // ---------------------------------------------------------------- statistics (V3, V4, T15)
 
+    /// <summary>
+    /// A very slow colour drift on the logo tile. It is the only decorative animation in
+    /// the window and it disappears when Windows asks for reduced motion.
+    /// </summary>
+    private void StartLogoBreath()
+    {
+        if (!AnimationsEnabled || LogoStop is null)
+        {
+            return;
+        }
+
+        var breath = new ColorAnimation
+        {
+            From = Color.FromRgb(0xE9, 0xEE, 0xFF),
+            To = Color.FromRgb(0xCF, 0xE0, 0xFF),
+            Duration = TimeSpan.FromSeconds(5),
+            AutoReverse = true,
+            RepeatBehavior = RepeatBehavior.Forever,
+        };
+
+        LogoStop.BeginAnimation(GradientStop.ColorProperty, breath);
+    }
+
     private void RefreshStats()
     {
         var proxy = LocalProxy.Instance;
+
+        // One number first: what the week would have cost on the paid equivalent of the
+        // current model. It is an estimate, so the caption says so.
+        var week = UsageStore.Recent(7);
+        long prompt = week.Sum(d => d.Prompt);
+        long completion = week.Sum(d => d.Completion);
+        long tokens = prompt + completion;
+        int answers = week.Sum(d => d.Responses);
+        long switches = proxy.Running ? proxy.Failovers : _serviceFailovers;
+
+        if (TxtSaved is not null)
+        {
+            TxtSaved.Text = Format.Rub(Pricing.Rub(prompt, completion, App.Settings.DefaultModel));
+        }
+
+        if (TxtStatRequests is not null)
+        {
+            TxtStatRequests.Text = Format.Compact(answers);
+            TxtStatRequestsLabel.Text = Format.Plural(
+                answers, "запрос за неделю", "запроса за неделю", "запросов за неделю");
+            TxtStatTokens.Text = Format.Compact(tokens);
+            TxtStatTokensLabel.Text = Format.Plural(
+                (int)Math.Min(tokens, int.MaxValue),
+                "токен за неделю", "токена за неделю", "токенов за неделю");
+            TxtStatSwitches.Text = Format.Compact(switches);
+            TxtStatSwitchesLabel.Text = Format.Plural(
+                (int)Math.Min(switches, int.MaxValue), "переключение", "переключения", "переключений");
+        }
+
+        DrawHistory(week);
+
         var sb = new System.Text.StringBuilder();
+        var today = UsageStore.Today;
+
+        if (answers == 0)
+        {
+            sb.AppendLine("Пока нет ответов за неделю. Сделайте запрос в OpenCode — цифры появятся здесь.");
+        }
+        else
+        {
+            sb.AppendLine(
+                $"Сегодня: вход {Format.Compact(today.Prompt)} · выход {Format.Compact(today.Completion)}"
+                + $" ({today.Responses} {Format.Plural(today.Responses, "ответ", "ответа", "ответов")})");
+        }
 
         if (proxy.Running)
         {
-            sb.AppendLine($"Запросов: {proxy.Requests} · переключений: {proxy.Failovers}");
-            sb.AppendLine($"Токенов за сессию: вход {proxy.PromptTokens} · выход {proxy.CompletionTokens}");
-            sb.AppendLine(TodayLine());
-            sb.AppendLine($"Стратегия: {StrategyName(App.Settings.KeyStrategy)}");
+            sb.AppendLine($"Стратегия: {StrategyName(App.Settings.KeyStrategy)} · за сессию {proxy.Requests} запросов");
 
             foreach (var key in App.Settings.Keys)
             {
@@ -335,7 +406,7 @@ public partial class MainWindow : Window
         }
         else if (PoolService.Current == PoolService.State.Running)
         {
-            sb.AppendLine("Счётчики службы Windows подтягиваются по каналу...");
+            sb.AppendLine("Запросы обслуживает служба Windows — окно только показывает счётчики.");
         }
         else
         {
@@ -346,14 +417,83 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// "Today" comes from usage.json, so it survives restarts of the app and of the
-    /// Windows service, unlike the session counters above it.
+    /// Bars for the last seven days. Bars are tokens per day, today is accent-coloured,
+    /// and the weekday is printed under each one so the chart reads without a legend.
     /// </summary>
-    private static string TodayLine()
+    private void DrawHistory(IReadOnlyList<(DateTime Day, long Prompt, long Completion, int Responses)> week)
     {
-        var today = UsageStore.Today;
-        return $"Токенов за сегодня: вход {today.Prompt} · выход {today.Completion} (ответов {today.Responses})";
+        if (HistoryCanvas is null)
+        {
+            return;
+        }
+
+        HistoryCanvas.Children.Clear();
+
+        double width = HistoryCanvas.ActualWidth;
+        double height = HistoryCanvas.ActualHeight;
+        if (width <= 20 || height <= 20 || week.Count == 0)
+        {
+            return;
+        }
+
+        const double labelHeight = 16;
+        double plotHeight = height - labelHeight;
+        double slot = width / week.Count;
+        double barWidth = Math.Max(4, Math.Min(26, slot - 8));
+        double peak = Math.Max(1, week.Max(d => d.Prompt + d.Completion));
+        var accent = ResBrush("Br.Accent");
+        var idle = ResBrush("Br.Muted");
+        var labelBrush = ResBrush("Br.TextSecondary");
+
+        for (int i = 0; i < week.Count; i++)
+        {
+            var day = week[i];
+            long value = day.Prompt + day.Completion;
+            bool isToday = day.Day.Date == DateTime.Today;
+            double barHeight = value <= 0 ? 2 : Math.Max(3, value / peak * (plotHeight - 8));
+            double x = slot * i + (slot - barWidth) / 2;
+
+            var bar = new System.Windows.Shapes.Rectangle
+            {
+                Width = barWidth,
+                Height = barHeight,
+                RadiusX = 3,
+                RadiusY = 3,
+                Fill = value <= 0 ? idle : accent,
+                Opacity = isToday ? 1.0 : 0.55,
+                ToolTip = value <= 0
+                    ? $"{day.Day:dd.MM}: нет данных"
+                    : $"{day.Day:dd.MM}: {Format.Compact(value)} токенов, {day.Responses} ответов",
+            };
+            Canvas.SetLeft(bar, x);
+            Canvas.SetTop(bar, plotHeight - barHeight);
+            HistoryCanvas.Children.Add(bar);
+
+            var label = new TextBlock
+            {
+                Text = DayName(day.Day),
+                FontSize = 10,
+                Foreground = isToday ? ResBrush("Br.Text") : labelBrush,
+                FontWeight = isToday ? FontWeights.SemiBold : FontWeights.Normal,
+                Width = slot,
+                TextAlignment = TextAlignment.Center,
+            };
+            Canvas.SetLeft(label, slot * i);
+            Canvas.SetTop(label, plotHeight + 2);
+            HistoryCanvas.Children.Add(label);
+        }
     }
+
+    private static string DayName(DateTime day) => day.DayOfWeek switch
+    {
+        DayOfWeek.Monday => "пн",
+        DayOfWeek.Tuesday => "вт",
+        DayOfWeek.Wednesday => "ср",
+        DayOfWeek.Thursday => "чт",
+        DayOfWeek.Friday => "пт",
+        DayOfWeek.Saturday => "сб",
+        _ => "вс",
+    };
 
     /// <summary>Refreshes the dashboard and the sparkline while the window is open (item V3).</summary>
     private void StartLiveStats()
@@ -366,83 +506,14 @@ public partial class MainWindow : Window
                 return;
             }
 
-            if (LocalProxy.Instance.Running)
-            {
-                RefreshStats();
-            }
-            else
+            if (!LocalProxy.Instance.Running)
             {
                 await RefreshServiceStatusAsync();
             }
 
-            DrawSpark();
+            RefreshStats();
         };
         _liveTimer.Start();
-        DrawSpark();
-    }
-
-    /// <summary>Plots requests-per-interval as a simple line on a Canvas (item V3).</summary>
-    private void DrawSpark()
-    {
-        if (SparkCanvas is null)
-        {
-            return;
-        }
-
-        SparkCanvas.Children.Clear();
-
-        double width = SparkCanvas.ActualWidth;
-        double height = SparkCanvas.ActualHeight;
-        if (width <= 2 || height <= 2)
-        {
-            return;
-        }
-
-        long total = LocalProxy.Instance.Running ? LocalProxy.Instance.Requests : _serviceRequests;
-        _samples.Add(total);
-        while (_samples.Count > 60)
-        {
-            _samples.RemoveAt(0);
-        }
-
-        var line = new System.Windows.Shapes.Polyline
-        {
-            Stroke = ResBrush("Br.Accent"),
-            StrokeThickness = 1.6,
-            StrokeLineJoin = PenLineJoin.Round,
-        };
-
-        if (_samples.Count >= 2)
-        {
-            var deltas = new List<double>();
-            for (int i = 1; i < _samples.Count; i++)
-            {
-                deltas.Add(Math.Max(0, _samples[i] - _samples[i - 1]));
-            }
-
-            double peak = Math.Max(1, deltas.Max());
-            for (int i = 0; i < deltas.Count; i++)
-            {
-                double x = deltas.Count == 1 ? 0 : width * i / (deltas.Count - 1);
-                double y = height - 3 - (deltas[i] / peak) * (height - 8);
-                line.Points.Add(new Point(x, y));
-            }
-        }
-
-        SparkCanvas.Children.Add(new System.Windows.Shapes.Line
-        {
-            X1 = 0,
-            X2 = width,
-            Y1 = height - 2,
-            Y2 = height - 2,
-            Stroke = ResBrush("Br.ControlBorder"),
-            StrokeThickness = 1,
-        });
-
-        if (line.Points.Count > 0)
-        {
-            SparkCanvas.Children.Add(line);
-        }
     }
 
     /// <summary>When only the service runs, its counters arrive over the named pipe (item T11).</summary>
@@ -473,6 +544,7 @@ public partial class MainWindow : Window
             long poutToday = Long(root, "completionTokensToday");
             long todayAnswers = Long(root, "usageResponsesToday");
             _serviceRequests = req;
+            _serviceFailovers = fail;
 
             // Item V4: the service owns the live counters, so read them over the pipe.
             _serviceKeyStats.Clear();
@@ -669,6 +741,7 @@ public partial class MainWindow : Window
         ThemeSystem.IsChecked = s.Theme == "system";
         ThemeDark.IsChecked = s.Theme == "dark";
         ThemeLight.IsChecked = s.Theme == "light";
+        TglCompact.IsChecked = s.CompactMode;
 
         TxtProxyBase.Text = s.ProxyBase;
         TxtSecret.Text = s.ProxySecret;
@@ -681,8 +754,10 @@ public partial class MainWindow : Window
         MarkAccent();
         _loading = false;
 
+        ApplyCompactMode();
         RenderKeys();
         RefreshPoolState();
+        RenderProfiles();
         RefreshStats();
         RefreshModeText();
     }
@@ -705,6 +780,15 @@ public partial class MainWindow : Window
         CmbModel.ItemsSource = models;
         CmbModel.SelectedItem = models.FirstOrDefault(m => string.Equals(m, id, StringComparison.OrdinalIgnoreCase))
                                 ?? models.FirstOrDefault();
+
+        if (CmbProfileModel is not null)
+        {
+            object? chosen = CmbProfileModel.SelectedItem;
+            CmbProfileModel.ItemsSource = models;
+            CmbProfileModel.SelectedItem = chosen is string text && models.Contains(text)
+                ? text
+                : CmbModel.SelectedItem;
+        }
     }
 
     private void Model_Changed(object sender, SelectionChangedEventArgs e)
@@ -732,6 +816,193 @@ public partial class MainWindow : Window
         }
 
         Journal($"Модель по умолчанию: {model}", Kind.Ok);
+    }
+
+    // ---------------------------------------------------------------- project profiles
+
+    private void RenderProfiles()
+    {
+        if (ProfilesList is null)
+        {
+            return;
+        }
+
+        ProfilesList.Children.Clear();
+        var profiles = App.Settings.Profiles ??= new List<ProjectProfile>();
+
+        if (profiles.Count == 0)
+        {
+            ProfilesList.Children.Add(new TextBlock
+            {
+                Text = "Профилей нет. Выберите модель и добавьте папку проекта — TokenHub запомнит её.",
+                Style = (Style)FindResource("Caption"),
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 6, 0, 0),
+            });
+            return;
+        }
+
+        foreach (var profile in profiles.ToList())
+        {
+            ProfilesList.Children.Add(BuildProfileRow(profile));
+        }
+    }
+
+    private FrameworkElement BuildProfileRow(ProjectProfile profile)
+    {
+        string folder = Path.GetFileName(
+            profile.Path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+
+        var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        text.Children.Add(new TextBlock
+        {
+            Text = string.IsNullOrEmpty(folder) ? profile.Path : folder,
+            Style = (Style)FindResource("CardTitle"),
+            FontSize = 13,
+        });
+        text.Children.Add(new TextBlock
+        {
+            Text = $"{profile.Model} · {profile.Path}",
+            Style = (Style)FindResource("Caption"),
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            TextWrapping = TextWrapping.NoWrap,
+            Margin = new Thickness(0, 2, 12, 0),
+        });
+
+        var buttons = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+
+        var apply = new Button
+        {
+            Content = "Применить",
+            Style = (Style)FindResource("SubtleButton"),
+            Tag = profile.Path,
+            Margin = new Thickness(0, 0, 6, 0),
+        };
+        AutomationProperties.SetName(apply, "Применить профиль к " + folder);
+        apply.Click += ApplyProfile_Click;
+        buttons.Children.Add(apply);
+
+        var remove = new Button
+        {
+            Content = "Убрать",
+            Style = (Style)FindResource("SubtleButton"),
+            Tag = profile.Path,
+        };
+        AutomationProperties.SetName(remove, "Убрать профиль " + folder);
+        remove.Click += RemoveProfile_Click;
+        buttons.Children.Add(remove);
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(buttons, 1);
+        grid.Children.Add(text);
+        grid.Children.Add(buttons);
+
+        return new Border
+        {
+            Background = ResBrush("Br.Control"),
+            BorderBrush = ResBrush("Br.ControlBorder"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(10, 8, 10, 8),
+            Margin = new Thickness(0, 6, 0, 0),
+            Child = grid,
+        };
+    }
+
+    private void AddProfile_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new Microsoft.Win32.OpenFolderDialog
+        {
+            Title = "Папка проекта для профиля",
+            Multiselect = false,
+        };
+
+        if (dialog.ShowDialog(this) != true)
+        {
+            return;
+        }
+
+        string path = dialog.FolderName.TrimEnd(Path.DirectorySeparatorChar);
+        var profiles = App.Settings.Profiles ??= new List<ProjectProfile>();
+
+        if (profiles.Any(p => string.Equals(p.Path, path, StringComparison.OrdinalIgnoreCase)))
+        {
+            Status("Профиль для этой папки уже есть.", Kind.Unknown);
+            return;
+        }
+
+        string model = CmbProfileModel.SelectedItem as string ?? App.Settings.DefaultModel;
+        if (!model.StartsWith("tokenharbor/", StringComparison.OrdinalIgnoreCase))
+        {
+            model = "tokenharbor/" + model;
+        }
+
+        profiles.Add(new ProjectProfile { Path = path, Model = model });
+        SettingsStore.Save(App.Settings);
+        RenderProfiles();
+        Status($"Профиль добавлен: {Path.GetFileName(path)} → {model}", Kind.Ok);
+    }
+
+    private void RemoveProfile_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button || button.Tag is not string path)
+        {
+            return;
+        }
+
+        App.Settings.Profiles?.RemoveAll(p => string.Equals(p.Path, path, StringComparison.OrdinalIgnoreCase));
+        SettingsStore.Save(App.Settings);
+        RenderProfiles();
+        Status("Профиль убран.", Kind.Ok);
+    }
+
+    private void ApplyProfile_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button || button.Tag is not string path)
+        {
+            return;
+        }
+
+        var profile = App.Settings.Profiles?
+            .FirstOrDefault(p => string.Equals(p.Path, path, StringComparison.OrdinalIgnoreCase));
+        if (profile is null)
+        {
+            return;
+        }
+
+        try
+        {
+            string file = Path.Combine(path, "opencode.json");
+            System.Text.Json.Nodes.JsonNode root = File.Exists(file)
+                ? System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(file)) ?? new System.Text.Json.Nodes.JsonObject()
+                : new System.Text.Json.Nodes.JsonObject();
+
+            if (root is not System.Text.Json.Nodes.JsonObject obj)
+            {
+                Status("opencode.json в проекте имеет неожиданный формат — не трогаю.", Kind.Fail);
+                return;
+            }
+
+            obj["$schema"] ??= "https://opencode.ai/config.json";
+            obj["model"] = profile.Model;
+
+            File.WriteAllText(
+                file,
+                obj.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+
+            Journal($"Профиль {Path.GetFileName(path)}: модель {profile.Model}", Kind.Ok);
+            Status($"Профиль применён: {Path.GetFileName(path)} → {profile.Model}", Kind.Ok);
+        }
+        catch (Exception ex)
+        {
+            Status("Не удалось применить профиль: " + ex.Message, Kind.Fail);
+        }
     }
 
     private void FreeOnly_Changed(object sender, RoutedEventArgs e)
@@ -1179,6 +1450,7 @@ public partial class MainWindow : Window
         PanelNetwork.Visibility = tag == "network" ? Visibility.Visible : Visibility.Collapsed;
         PanelKeys.Visibility = tag == "keys" ? Visibility.Visible : Visibility.Collapsed;
         PanelSkills.Visibility = tag == "skills" ? Visibility.Visible : Visibility.Collapsed;
+        PanelMemory.Visibility = tag == "memory" ? Visibility.Visible : Visibility.Collapsed;
         PanelSettings.Visibility = tag == "settings" ? Visibility.Visible : Visibility.Collapsed;
 
         // Item V7: a short fade between panels, skipped when Windows disables animations.
@@ -1188,6 +1460,7 @@ public partial class MainWindow : Window
             "network" => PanelNetwork,
             "keys" => PanelKeys,
             "skills" => PanelSkills,
+            "memory" => PanelMemory,
             "settings" => PanelSettings,
             _ => PanelHome,
         };
@@ -1214,6 +1487,12 @@ public partial class MainWindow : Window
         if (tag == "skills")
         {
             RenderSkills();
+        }
+
+        if (tag == "memory")
+        {
+            App.TryWireMemory();
+            RenderMemory();
         }
     }
 
@@ -1579,6 +1858,49 @@ public partial class MainWindow : Window
         ApplyTheme();
     }
 
+    private void Compact_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loading)
+        {
+            return;
+        }
+
+        App.Settings.CompactMode = TglCompact.IsChecked == true;
+        SettingsStore.Save(App.Settings);
+        ApplyCompactMode();
+    }
+
+    /// <summary>
+    /// Compact mode is spacing only: nav rows shrink and the pages lose their outer
+    /// margins, so more of the card list fits without touching typography.
+    /// </summary>
+    private void ApplyCompactMode()
+    {
+        if (NavRail is null)
+        {
+            return;
+        }
+
+        bool compact = App.Settings.CompactMode;
+        TglCompact.IsChecked = compact;
+
+        double navHeight = compact ? 34 : 44;
+        foreach (var item in NavRail.Children.OfType<RadioButton>())
+        {
+            item.Height = navHeight;
+        }
+
+        var margin = compact ? new Thickness(14, 4, 0, 0) : new Thickness(18, 10, 0, 0);
+        foreach (var panel in new FrameworkElement[]
+                 {
+                     PanelHome, PanelLaunch, PanelNetwork, PanelKeys,
+                     PanelSkills, PanelMemory, PanelSettings,
+                 })
+        {
+            panel.Margin = margin;
+        }
+    }
+
     private void Accent_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button button)
@@ -1735,7 +2057,7 @@ public partial class MainWindow : Window
 
         if (settings.Keys.Count == 0)
         {
-            TxtKeysEmpty.Text = "Ключей пока нет. Нажмите «Добавить ключ», чтобы вставить ключ Token Harbor.";
+            TxtKeysEmpty.Text = "Ключей пока нет — добавьте первый ключ Token Harbor, и пул заработает.";
             TxtKeysEmpty.Visibility = Visibility.Visible;
         }
         else if (visible.Count == 0)
@@ -1836,6 +2158,10 @@ public partial class MainWindow : Window
         });
 
         string statusLine = $"{key.Masked} · {key.LastStatus}";
+        if (key.ExhaustedUntilUtc is DateTime pausedUntil && pausedUntil > DateTime.UtcNow)
+        {
+            statusLine += $" · пауза до {pausedUntil.ToLocalTime():HH:mm}";
+        }
         if (key.BlockedModels.Count > 0)
         {
             statusLine += $" · нет плана: {string.Join(", ", key.BlockedModels)}";
@@ -2294,9 +2620,9 @@ public partial class MainWindow : Window
     private void ExportKeys_Click(object sender, RoutedEventArgs e)
     {
         var settings = App.Settings;
-        if (settings.Keys.Count == 0)
+        if (settings.Keys.Count == 0 && (settings.Profiles?.Count ?? 0) == 0)
         {
-            Status("Нечего экспортировать — ключей нет", Kind.Fail);
+            Status("Нечего экспортировать — ключей и профилей нет", Kind.Fail);
             return;
         }
 
@@ -2324,6 +2650,9 @@ public partial class MainWindow : Window
                     Label = k.Label,
                     Enabled = k.Enabled,
                 }).ToList(),
+                Profiles = (settings.Profiles ?? new List<ProjectProfile>())
+                    .Select(p => new ProjectProfile { Path = p.Path, Model = p.Model })
+                    .ToList(),
             };
 
             File.WriteAllText(
@@ -2355,14 +2684,16 @@ public partial class MainWindow : Window
         try
         {
             var bundle = JsonSerializer.Deserialize<KeyBundle>(File.ReadAllText(dialog.FileName));
-            if (bundle?.Keys is null || bundle.Keys.Count == 0)
+            bool hasKeys = bundle?.Keys is { Count: > 0 };
+            bool hasProfiles = bundle?.Profiles is { Count: > 0 };
+            if (!hasKeys && !hasProfiles)
             {
-                Status("В файле нет ключей", Kind.Fail);
+                Status("В файле нет ни ключей, ни профилей", Kind.Fail);
                 return;
             }
 
             int added = 0;
-            foreach (var record in bundle.Keys)
+            foreach (var record in bundle!.Keys ?? new List<KeyRecord>())
             {
                 string value = (record.Key ?? string.Empty).Trim();
                 if (value.Length < 20 || !value.StartsWith("thk_", StringComparison.OrdinalIgnoreCase))
@@ -2386,12 +2717,34 @@ public partial class MainWindow : Window
                 added++;
             }
 
+            int profilesAdded = 0;
+            var profiles = App.Settings.Profiles ??= new List<ProjectProfile>();
+            foreach (var profile in bundle.Profiles ?? new List<ProjectProfile>())
+            {
+                string path = (profile?.Path ?? string.Empty).TrimEnd(Path.DirectorySeparatorChar);
+                if (path.Length == 0 || string.IsNullOrWhiteSpace(profile!.Model))
+                {
+                    continue;
+                }
+
+                if (profiles.Any(p => string.Equals(p.Path, path, StringComparison.OrdinalIgnoreCase)))
+                {
+                    continue;
+                }
+
+                profiles.Add(new ProjectProfile { Path = path, Model = profile.Model.Trim() });
+                profilesAdded++;
+            }
+
             SettingsStore.Save(App.Settings);
             RenderKeys();
             RefreshPoolState();
+            RenderProfiles();
 
-            Status(added > 0 ? $"Импортировано ключей: {added}" : "Новых ключей не найдено",
-                added > 0 ? Kind.Ok : Kind.Fail);
+            string keysText = added > 0 ? $"Импортировано ключей: {added}" : "Новых ключей не найдено";
+            string profilesText = profilesAdded > 0 ? $", профилей: {profilesAdded}" : string.Empty;
+
+            Status(keysText + profilesText, added > 0 || profilesAdded > 0 ? Kind.Ok : Kind.Fail);
         }
         catch (Exception ex)
         {
@@ -2573,10 +2926,14 @@ public partial class MainWindow : Window
         SkillsGroups.Children.Clear();
 
         string filter = TxtSkillSearch?.Text?.Trim() ?? string.Empty;
+        bool favoriteOnly = TglSkillFav?.IsChecked == true;
+        var favorites = App.Settings.FavoriteSkills ?? new List<string>();
+
         var visible = Skills.Catalog
             .Where(skill => filter.Length == 0
                             || skill.Name.Contains(filter, StringComparison.OrdinalIgnoreCase)
                             || skill.Description.Contains(filter, StringComparison.OrdinalIgnoreCase))
+            .Where(skill => !favoriteOnly || favorites.Contains(skill.Name, StringComparer.OrdinalIgnoreCase))
             .ToList();
 
         _skillsShown = visible.Count;
@@ -2600,7 +2957,11 @@ public partial class MainWindow : Window
         {
             SkillsGroups.Children.Add(new TextBlock
             {
-                Text = Skills.Catalog.Count == 0 ? "В этой сборке нет набора скиллов." : "Ничего не найдено.",
+                Text = Skills.Catalog.Count == 0
+                    ? "В этой сборке нет набора скиллов."
+                    : favoriteOnly && favorites.Count == 0
+                        ? "В избранном пока пусто — нажмите звёздочку у названия скилла."
+                        : "Ничего не найдено.",
                 Style = (Style)FindResource("Caption"),
             });
         }
@@ -2648,6 +3009,21 @@ public partial class MainWindow : Window
         foreach (var skill in items)
         {
             body.Children.Add(SkillRow(skill));
+        }
+
+        // A whole bucket in one click: this is the "preset" the section already describes.
+        if (!items.All(skill => Skills.IsInstalled(skill.Name)))
+        {
+            var bulk = new Button
+            {
+                Content = $"Установить раздел · {items.Count}",
+                Style = (Style)FindResource("SubtleButton"),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Margin = new Thickness(0, 0, 0, 8),
+            };
+            AutomationProperties.SetName(bulk, "Установить раздел " + group.Name);
+            bulk.Click += (_, _) => InstallSkills(items.Select(skill => skill.Name), group.Name);
+            body.Children.Insert(0, bulk);
         }
 
         var title = new StackPanel();
@@ -2737,6 +3113,19 @@ public partial class MainWindow : Window
                 Foreground = (Brush)FindResource("Br.Success"),
                 Margin = new Thickness(0, 8, 0, 0),
             });
+
+            var reinstall = new Button
+            {
+                Content = "Обновить",
+                Style = (Style)FindResource("SubtleButton"),
+                Padding = new Thickness(14, 7, 14, 7),
+                FontSize = 12,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Margin = new Thickness(0, 8, 0, 0),
+            };
+            AutomationProperties.SetName(reinstall, "Обновить " + skill.Name);
+            reinstall.Click += (_, _) => InstallSkills(new[] { skill.Name }, skill.Name);
+            body.Children.Add(reinstall);
         }
         else
         {
@@ -2763,6 +3152,27 @@ public partial class MainWindow : Window
 
         // A quiet dot marks "already installed" without opening the row.
         var trailing = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+
+        bool favorite = (App.Settings.FavoriteSkills ?? new List<string>())
+            .Contains(skill.Name, StringComparer.OrdinalIgnoreCase);
+        var star = new Button
+        {
+            Content = favorite ? "\uE735" : "\uE734",
+            FontFamily = GlyphFont,
+            FontSize = 12,
+            Foreground = favorite
+                ? (Brush)FindResource("Br.Accent")
+                : (Brush)FindResource("Br.TextSecondary"),
+            Background = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
+            Cursor = Cursors.Hand,
+            Padding = new Thickness(6, 2, 6, 2),
+            ToolTip = favorite ? "Убрать из избранного" : "В избранное",
+        };
+        AutomationProperties.SetName(
+            star, (favorite ? "Убрать из избранного " : "В избранное ") + skill.Name);
+        star.Click += (_, _) => ToggleFavoriteSkill(skill.Name);
+        trailing.Children.Add(star);
 
         if (installed)
         {
@@ -2860,9 +3270,204 @@ public partial class MainWindow : Window
         }
 
         TxtSkillsHint.Text = Skills.Catalog.Count == 0
-            ? string.Empty
+            ? "Скиллов пока нет. Установите OpenCode — скиллы появятся здесь автоматически."
             : $"Показано: {_skillsShown} из {Skills.Catalog.Count}. Установлено: {Skills.InstalledCount}. Каталог лежит в {Skills.Folder}";
     }
+
+    // ---------------------------------------------------------------- memory
+
+    private void RenderMemory()
+    {
+        var all = MemoryStore.All();
+        bool wired = OpenCodeConfig.HasMemory();
+
+        Dot(DotMemory, wired ? Kind.Ok : Kind.Unknown);
+        TxtMemoryState.Text = wired
+            ? "Подключена к OpenCode через MCP: ассистент ищет здесь контекст и сохраняет уроки сам."
+            : "Память работает, но OpenCode её пока не видит. Перезапустите TokenHub — подключение добавится автоматически.";
+
+        var tags = MemoryStore.Tags();
+        string tagLine = tags.Count == 0
+            ? string.Empty
+            : " · " + string.Join(", ", tags.Take(6).Select(t => $"#{t.Tag}"));
+
+        TxtMemoryStats.Text =
+            $"{all.Count} {Format.Plural(all.Count, "заметка", "заметки", "заметок")}"
+            + $" · сегодня {MemoryStore.TodayCount()}"
+            + tagLine;
+
+        string query = TxtMemorySearch.Text.Trim();
+        var shown = query.Length == 0 ? all : MemoryStore.Search(query, 50);
+
+        MemoryList.Children.Clear();
+        foreach (var entry in shown.Take(200))
+        {
+            MemoryList.Children.Add(BuildMemoryCard(entry));
+        }
+
+        if (shown.Count == 0)
+        {
+            TxtMemoryEmpty.Text = all.Count == 0
+                ? "Память пока пуста. Попросите ассистента разобраться в проекте — он сохранит важное сам, или добавьте заметку выше."
+                : $"Ничего не найдено по запросу «{query}».";
+            TxtMemoryEmpty.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            TxtMemoryEmpty.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private UIElement BuildMemoryCard(MemoryStore.Entry entry)
+    {
+        var head = new DockPanel();
+
+        var forget = new Button
+        {
+            Content = "Удалить",
+            Style = (Style)Application.Current.Resources["SubtleButton"],
+            Tag = entry.Id,
+            Margin = new Thickness(8, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Top,
+        };
+        AutomationProperties.SetName(forget, "Удалить заметку " + entry.Id);
+        forget.Click += DeleteMemory_Click;
+        DockPanel.SetDock(forget, Dock.Right);
+        head.Children.Add(forget);
+
+        string scope = string.IsNullOrEmpty(entry.Scope)
+            ? "общая"
+            : Path.GetFileName(entry.Scope.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+
+        head.Children.Add(new TextBlock
+        {
+            Text = $"{MemoryKindName(entry.Kind)} · {entry.At} · {scope}",
+            FontSize = 11,
+            Foreground = ResBrush("Br.TextSecondary"),
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+
+        var body = new StackPanel();
+        body.Children.Add(head);
+        body.Children.Add(new TextBlock
+        {
+            Text = entry.Text,
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = ResBrush("Br.Text"),
+            Margin = new Thickness(0, 6, 0, 0),
+        });
+
+        if (entry.Tags.Count > 0)
+        {
+            body.Children.Add(new TextBlock
+            {
+                Text = string.Join("  ", entry.Tags.Select(t => "#" + t)),
+                FontSize = 11,
+                Foreground = ResBrush("Br.Accent"),
+                Margin = new Thickness(0, 6, 0, 0),
+                TextWrapping = TextWrapping.Wrap,
+            });
+        }
+
+        return new Border
+        {
+            Background = ResBrush("Br.Control"),
+            BorderBrush = ResBrush("Br.ControlBorder"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(10, 8, 10, 8),
+            Margin = new Thickness(0, 0, 0, 6),
+            Child = body,
+        };
+    }
+
+    private static string MemoryKindName(string kind) => kind switch
+    {
+        "lesson" => "урок",
+        "decision" => "решение",
+        "fact" => "факт",
+        "snippet" => "код",
+        _ => "заметка",
+    };
+
+    private void MemorySearch_Changed(object sender, TextChangedEventArgs e)
+    {
+        if (_loading)
+        {
+            return;
+        }
+
+        RenderMemory();
+    }
+
+    private void SaveMemory_Click(object sender, RoutedEventArgs e)
+    {
+        string text = TxtMemoryNew.Text.Trim();
+        if (text.Length == 0)
+        {
+            Status("Заметка пустая — напишите, что запомнить.", Kind.Fail);
+            return;
+        }
+
+        var entry = MemoryStore.Add(text, "note");
+        TxtMemoryNew.Text = string.Empty;
+        RenderMemory();
+        Status($"Заметка {entry.Id} сохранена в память.", Kind.Ok);
+    }
+
+    private void DeleteMemory_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button || button.Tag is not string id)
+        {
+            return;
+        }
+
+        if (MemoryStore.Remove(id))
+        {
+            RenderMemory();
+            Status($"Заметка {id} удалена.", Kind.Ok);
+        }
+    }
+
+    private void ClearMemory_Click(object sender, RoutedEventArgs e)
+    {
+        if (MemoryStore.Count == 0)
+        {
+            Status("Память уже пуста.", Kind.Unknown);
+            return;
+        }
+
+        var answer = MessageBox.Show(
+            this,
+            "Удалить все заметки памяти? Ассистент потеряет накопленный контекст.",
+            "TokenHub",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+
+        if (answer != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        MemoryStore.Clear();
+        RenderMemory();
+        Status("Память очищена.", Kind.Ok);
+    }
+
+    private void OpenMemoryFile_Click(object sender, RoutedEventArgs e)
+    {
+        if (File.Exists(MemoryStore.FilePath))
+        {
+            Launcher.RevealFile(MemoryStore.FilePath);
+        }
+        else
+        {
+            Status("Файл памяти ещё не создан — сохраните первую заметку.", Kind.Unknown);
+        }
+    }
+
+    private void OpenMemoryFolder_Click(object sender, RoutedEventArgs e) =>
+        Launcher.OpenFolder(SettingsStore.Directory);
 
     private void SkillSearch_Changed(object sender, TextChangedEventArgs e)
     {
@@ -2876,6 +3481,45 @@ public partial class MainWindow : Window
 
     private void InstallAllSkills_Click(object sender, RoutedEventArgs e) =>
         InstallSkills(Skills.Catalog.Select(skill => skill.Name), "все");
+
+    private void UpdateInstalledSkills_Click(object sender, RoutedEventArgs e)
+    {
+        var installed = Skills.Catalog
+            .Where(skill => Skills.IsInstalled(skill.Name))
+            .Select(skill => skill.Name)
+            .ToList();
+
+        if (installed.Count == 0)
+        {
+            Status("Обновлять нечего — ни один скилл ещё не установлен.", Kind.Unknown);
+            return;
+        }
+
+        InstallSkills(installed, "обновление установленных");
+    }
+
+    private void SkillFav_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loading)
+        {
+            return;
+        }
+
+        RenderSkills();
+    }
+
+    private void ToggleFavoriteSkill(string name)
+    {
+        var favorites = App.Settings.FavoriteSkills ??= new List<string>();
+        int removed = favorites.RemoveAll(item => string.Equals(item, name, StringComparison.OrdinalIgnoreCase));
+        if (removed == 0)
+        {
+            favorites.Add(name);
+        }
+
+        SettingsStore.Save(App.Settings);
+        RenderSkills();
+    }
 
     private void InstallSkills(IEnumerable<string> names, string what)
     {
@@ -3074,4 +3718,7 @@ internal sealed class KeyBundle
     public DateTime ExportedUtc { get; set; }
 
     public List<KeyRecord> Keys { get; set; } = new();
+
+    /// <summary>Project model overrides travel with the keys, so a new machine is set up in one import.</summary>
+    public List<ProjectProfile> Profiles { get; set; } = new();
 }

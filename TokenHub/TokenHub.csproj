@@ -8,11 +8,12 @@
     <UseWPF>true</UseWPF>
     <AssemblyName>TokenHub</AssemblyName>
     <RootNamespace>TokenHub</RootNamespace>
-    <Version>1.1.2</Version>
+    <Version>1.2.0</Version>
     <AssemblyTitle>TokenHub</AssemblyTitle>
     <Product>TokenHub</Product>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+    <StartupObject>TokenHub.Program</StartupObject>
   </PropertyGroup>
 
   <ItemGroup>
