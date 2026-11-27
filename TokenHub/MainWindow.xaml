@@ -308,11 +308,22 @@
                                         </StackPanel>
                                     </UniformGrid>
 
-                                    <Border Height="96" Margin="0,16,0,0" CornerRadius="{StaticResource Rad.Sm}"
+                                    <Border Margin="0,16,0,0" CornerRadius="{StaticResource Rad.Sm}"
                                             Background="{DynamicResource Br.Control}"
                                             BorderBrush="{DynamicResource Br.ControlBorder}" BorderThickness="1"
                                             AutomationProperties.Name="График токенов по дням">
-                                        <Canvas x:Name="HistoryCanvas" Height="92" Margin="8,4" ClipToBounds="True" />
+                                        <StackPanel Margin="8,6">
+                                            <DockPanel>
+                                                <TextBlock Text="Динамика за 30 дней" Style="{StaticResource Caption}"
+                                                           DockPanel.Dock="Left" VerticalAlignment="Center" />
+                                                <TextBlock x:Name="TxtSparkPeak" Style="{StaticResource Caption}"
+                                                           HorizontalAlignment="Right" TextAlignment="Right"
+                                                           VerticalAlignment="Center" />
+                                            </DockPanel>
+                                            <Canvas x:Name="SparkCanvas" Height="30" Margin="0,2,0,0" ClipToBounds="True" />
+                                            <Border Height="1" Margin="0,6,0,0" Background="{DynamicResource Br.ControlBorder}" />
+                                            <Canvas x:Name="HistoryCanvas" Height="74" Margin="0,4,0,0" ClipToBounds="True" />
+                                        </StackPanel>
                                     </Border>
 
                                     <TextBlock x:Name="TxtPoolStats" Style="{StaticResource Mono}" Margin="0,10,0,0"

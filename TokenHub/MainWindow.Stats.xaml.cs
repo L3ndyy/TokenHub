@@ -98,12 +98,12 @@ public partial class MainWindow
 
         // One number first: what the week would have cost on the paid equivalent of the
         // current model. It is an estimate, so the caption says so.
-        // Two weeks: the newest seven days are the week on screen, the older seven are the
-        // yardstick for the "vs last week" note under the big number.
-        var fortnight = UsageStore.Recent(14);
-        int split = Math.Max(0, fortnight.Count - 7);
-        var before = fortnight.Take(split).ToList();
-        var week = fortnight.Skip(split).ToList();
+        // A month is loaded because the sparkline needs it; the newest seven days are the
+        // week on screen, the seven before them are the yardstick for "vs last week".
+        var month = UsageStore.Recent(30);
+        int split = Math.Max(0, month.Count - 7);
+        var before = month.Skip(Math.Max(0, split - 7)).Take(7).ToList();
+        var week = month.Skip(split).ToList();
         long prompt = week.Sum(d => d.Prompt);
         long completion = week.Sum(d => d.Completion);
         long tokens = prompt + completion;
@@ -138,6 +138,7 @@ public partial class MainWindow
                 (int)Math.Min(switches, int.MaxValue), "переключение", "переключения", "переключений");
         }
 
+        DrawSparkline(month);
         DrawHistory(week);
 
         var sb = new System.Text.StringBuilder();
@@ -294,6 +295,69 @@ public partial class MainWindow
             Canvas.SetLeft(label, slot * i);
             Canvas.SetTop(label, plotHeight + 2);
             HistoryCanvas.Children.Add(label);
+        }
+    }
+
+    /// <summary>
+    /// A month of tokens as a single line above the week of bars. The bars answer "how is
+    /// this week going", the line answers "where is this heading".
+    /// </summary>
+    private void DrawSparkline(IReadOnlyList<(DateTime Day, long Prompt, long Completion, int Responses)> month)
+    {
+        if (SparkCanvas is null)
+        {
+            return;
+        }
+
+        SparkCanvas.Children.Clear();
+
+        double width = SparkCanvas.ActualWidth;
+        double height = SparkCanvas.ActualHeight;
+        if (width <= 20 || height <= 12 || month.Count < 2)
+        {
+            return;
+        }
+
+        double peak = Math.Max(1, month.Max(d => d.Prompt + d.Completion));
+        double plot = height - 4;
+        double step = width / (month.Count - 1);
+        var accent = ResBrush("Br.Accent");
+
+        var line = new System.Windows.Shapes.Polyline
+        {
+            Stroke = accent,
+            StrokeThickness = 1.5,
+            StrokeLineJoin = PenLineJoin.Round,
+            ToolTip = $"Последние {month.Count} дней, максимум {Format.Compact((long)peak)} токенов в день",
+        };
+        var area = new System.Windows.Shapes.Polygon { Fill = accent, Opacity = 0.16 };
+
+        for (int i = 0; i < month.Count; i++)
+        {
+            long value = month[i].Prompt + month[i].Completion;
+            double x = i * step;
+            double y = height - 2 - Math.Min(plot, value / peak * plot);
+            line.Points.Add(new Point(x, y));
+            area.Points.Add(new Point(x, y));
+        }
+
+        // Close the polygon along the bottom so the month reads as an area, not a wire.
+        area.Points.Add(new Point(width, height));
+        area.Points.Add(new Point(0, height));
+
+        SparkCanvas.Children.Add(area);
+        SparkCanvas.Children.Add(line);
+
+        // Today is the one point that must be findable at a glance.
+        Point today = line.Points[^1];
+        var dot = new System.Windows.Shapes.Ellipse { Width = 5, Height = 5, Fill = accent };
+        Canvas.SetLeft(dot, today.X - 2.5);
+        Canvas.SetTop(dot, today.Y - 2.5);
+        SparkCanvas.Children.Add(dot);
+
+        if (TxtSparkPeak is not null)
+        {
+            TxtSparkPeak.Text = peak <= 1 ? string.Empty : $"макс {Format.Compact((long)peak)} в день";
         }
     }
 

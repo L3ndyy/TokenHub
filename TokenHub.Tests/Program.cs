@@ -28,6 +28,7 @@ internal static class Program
         UsageStoreTests();
         MemoryStoreTests();
         FormatTests();
+        ContrastTests();
         SkillsTests();
         OpenCodeConfigTests();
         DpapiTests();
@@ -542,6 +543,79 @@ internal static class Program
             _failed++;
             Console.WriteLine($"  FAIL {name} — получено: {actual}");
         }
+    }
+
+    // ---------------------------------------------------------------- palette contrast
+
+    /// <summary>
+    /// WCAG AA wants 4.5:1 for normal-size text, and the palette is translucent, so the
+    /// text colour is composited over the surface it is actually drawn on before the
+    /// ratio is measured. The light secondary grey used to sit at 2.4:1 on a white card,
+    /// which is exactly the kind of thing that only a number catches.
+    /// </summary>
+    private static void ContrastTests()
+    {
+        Console.WriteLine("Контраст текста (WCAG AA)");
+
+        var light = Palette.For(dark: false, "#FF0067C0").ToDictionary(p => p.Key, p => p.Hex);
+        var dark = Palette.For(dark: true, "#FF4CC2FF").ToDictionary(p => p.Key, p => p.Hex);
+
+        // Worst-case surfaces: the lightest background a light-theme window can show and the
+        // lightest (most washed-out) one the dark theme can show.
+        foreach (string background in new[] { "#FFFFFFFF", "#FFF2F4F8" })
+        {
+            CheckContrast("светлая тема: основной текст", light["Br.Text"], background);
+            CheckContrast("светлая тема: вторичный текст", light["Br.TextSecondary"], background);
+            CheckContrast("светлая тема: приглушённый текст", light["Br.Muted"], background);
+        }
+
+        foreach (string background in new[] { "#FF1B1B1F", "#FF38383D" })
+        {
+            CheckContrast("тёмная тема: основной текст", dark["Br.Text"], background);
+            CheckContrast("тёмная тема: вторичный текст", dark["Br.TextSecondary"], background);
+            CheckContrast("тёмная тема: приглушённый текст", dark["Br.Muted"], background);
+        }
+    }
+
+    private static void CheckContrast(string name, string textHex, string backgroundHex)
+    {
+        var (_, br, bg, bb) = Rgba(backgroundHex);
+        double ratio = Contrast(Composite(textHex, backgroundHex), (br, bg, bb));
+        Check($"{name} на {backgroundHex}: {ratio:0.00}:1", ratio >= 4.5, $"{ratio:0.00}:1");
+    }
+
+    private static (double R, double G, double B) Composite(string hex, string backgroundHex)
+    {
+        var (a, r, g, b) = Rgba(hex);
+        var (_, br, bg, bb) = Rgba(backgroundHex);
+        double f = a / 255.0;
+        return (f * r + (1 - f) * br, f * g + (1 - f) * bg, f * b + (1 - f) * bb);
+    }
+
+    /// <summary>Relative luminance as defined by WCAG 2.x.</summary>
+    private static double Contrast((double R, double G, double B) a, (double R, double G, double B) b)
+    {
+        double la = Luminance(a);
+        double lb = Luminance(b);
+        return (Math.Max(la, lb) + 0.05) / (Math.Min(la, lb) + 0.05);
+    }
+
+    private static double Luminance((double R, double G, double B) c) =>
+        0.2126 * Linear(c.R) + 0.7152 * Linear(c.G) + 0.0722 * Linear(c.B);
+
+    private static double Linear(double channel)
+    {
+        double v = channel / 255.0;
+        return v <= 0.03928 ? v / 12.92 : Math.Pow((v + 0.055) / 1.055, 2.4);
+    }
+
+    private static (int A, int R, int G, int B) Rgba(string hex)
+    {
+        string h = hex.TrimStart('#');
+        uint value = Convert.ToUInt32(h, 16);
+        return h.Length <= 6
+            ? (255, (int)((value >> 16) & 0xFF), (int)((value >> 8) & 0xFF), (int)(value & 0xFF))
+            : ((int)((value >> 24) & 0xFF), (int)((value >> 16) & 0xFF), (int)((value >> 8) & 0xFF), (int)(value & 0xFF));
     }
 
     // ---------------------------------------------------------------- local proxy (integration)

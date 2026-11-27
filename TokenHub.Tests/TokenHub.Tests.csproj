@@ -24,5 +24,6 @@
     <Compile Include="..\TokenHub\Services\OpenCodeConfig.cs" Link="OpenCodeConfig.cs" />
     <Compile Include="..\TokenHub\Services\StatsStore.cs" Link="StatsStore.cs" />
     <Compile Include="..\TokenHub\Services\LocalProxy.cs" Link="LocalProxy.cs" />
+    <Compile Include="..\TokenHub\Services\Palette.cs" Link="Palette.cs" />
   </ItemGroup>
 </Project>
